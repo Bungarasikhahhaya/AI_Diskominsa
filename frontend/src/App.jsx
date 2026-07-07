@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 const features = [
   {
@@ -51,6 +51,8 @@ const trendOutputs = [
   'arah_tren',
 ]
 
+const API_BASE = '/api'
+
 function HeaderButton({ active, children, onClick }) {
   return (
     <button
@@ -62,6 +64,452 @@ function HeaderButton({ active, children, onClick }) {
     >
       {children}
     </button>
+  )
+}
+
+function TrendPointChart({ historical, projection, unit }) {
+  const { points, viewBox, minY, maxY } = useMemo(() => {
+    const combined = [...historical.map((item) => ({ ...item, group: 'historical' })), ...projection.map((item) => ({ ...item, group: 'projection' }))]
+
+    if (!combined.length) {
+      return { points: { historical: '', projection: '' }, viewBox: '0 0 800 360', minY: 0, maxY: 1 }
+    }
+
+    const sorted = combined.sort((a, b) => a.tahun - b.tahun)
+    const minValue = Math.min(...sorted.map((item) => item.nilai))
+    const maxValue = Math.max(...sorted.map((item) => item.nilai))
+    const minYear = Math.min(...sorted.map((item) => item.tahun))
+    const maxYear = Math.max(...sorted.map((item) => item.tahun))
+    const width = 800
+    const height = 360
+    const paddingX = 54
+    const paddingY = 42
+    const rangeX = Math.max(maxYear - minYear, 1)
+    const rangeY = Math.max(maxValue - minValue, 1)
+
+    const scaleX = (year) => paddingX + ((year - minYear) / rangeX) * (width - paddingX * 2)
+    const scaleY = (value) => height - paddingY - ((value - minValue) / rangeY) * (height - paddingY * 2)
+
+    const makePath = (items) =>
+      items
+        .sort((a, b) => a.tahun - b.tahun)
+        .map((point, index) => `${index === 0 ? 'M' : 'L'} ${scaleX(point.tahun).toFixed(2)} ${scaleY(point.nilai).toFixed(2)}`)
+        .join(' ')
+
+    return {
+      points: {
+        historical: makePath(historical),
+        projection: makePath(projection),
+      },
+      viewBox: `0 0 ${width} ${height}`,
+      minY: minValue,
+      maxY: maxValue,
+    }
+  }, [historical, projection])
+
+  const allPoints = [...historical, ...projection]
+  if (!allPoints.length) {
+    return (
+      <div className="flex h-[360px] items-center justify-center rounded-[28px] border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
+        Belum ada data untuk ditampilkan.
+      </div>
+    )
+  }
+
+  const years = Array.from(new Set(allPoints.map((point) => point.tahun))).sort((a, b) => a - b)
+
+  return (
+    <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 px-2">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">Historis solid, proyeksi dashed</p>
+          <p className="text-xs text-slate-500">Satuan: {unit || '-'}</p>
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs font-semibold text-slate-600">
+          <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-slate-900" />
+            Historis
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-3 py-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-red-700" />
+            Proyeksi
+          </span>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <svg viewBox={viewBox} className="min-w-[640px] w-full" role="img" aria-label="Grafik historis dan proyeksi">
+          <defs>
+            <linearGradient id="historicalFill" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="rgba(15, 23, 42, 0.18)" />
+              <stop offset="100%" stopColor="rgba(15, 23, 42, 0)" />
+            </linearGradient>
+            <linearGradient id="projectionFill" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="rgba(185, 28, 28, 0.18)" />
+              <stop offset="100%" stopColor="rgba(185, 28, 28, 0)" />
+            </linearGradient>
+          </defs>
+
+          <rect x="0" y="0" width="800" height="360" rx="20" fill="#fff" />
+
+          {[0, 1, 2, 3, 4].map((step) => {
+            const y = 42 + ((360 - 84) / 4) * step
+            const labelValue = maxY - ((maxY - minY) / 4) * step
+            return (
+              <g key={step}>
+                <line x1="54" x2="746" y1={y} y2={y} stroke="#e2e8f0" strokeDasharray="4 8" />
+                <text x="14" y={y + 4} className="fill-slate-400" fontSize="12">
+                  {labelValue.toFixed(1)}
+                </text>
+              </g>
+            )
+          })}
+
+          {years.map((year) => {
+            const x = 54 + ((year - years[0]) / Math.max(years[years.length - 1] - years[0], 1)) * (800 - 108)
+            return (
+              <g key={year}>
+                <line x1={x} x2={x} y1="42" y2="318" stroke="#f1f5f9" />
+                <text x={x} y="342" textAnchor="middle" className="fill-slate-500" fontSize="12">
+                  {year}
+                </text>
+              </g>
+            )
+          })}
+
+          {points.historical && <path d={points.historical} fill="none" stroke="#0f172a" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />}
+          {points.projection && <path d={points.projection} fill="none" stroke="#b91c1c" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="10 8" />}
+
+          {historical.map((point) => {
+            const x = 54 + ((point.tahun - years[0]) / Math.max(years[years.length - 1] - years[0], 1)) * (800 - 108)
+            const y = 318 - ((point.nilai - minY) / Math.max(maxY - minY, 1)) * 276
+            return <circle key={`h-${point.tahun}`} cx={x} cy={y} r="4.5" fill="#0f172a" />
+          })}
+
+          {projection.map((point) => {
+            const x = 54 + ((point.tahun - years[0]) / Math.max(years[years.length - 1] - years[0], 1)) * (800 - 108)
+            const y = 318 - ((point.nilai - minY) / Math.max(maxY - minY, 1)) * 276
+            return <circle key={`p-${point.tahun}`} cx={x} cy={y} r="4.5" fill="#b91c1c" />
+          })}
+        </svg>
+      </div>
+    </div>
+  )
+}
+
+function TrendPredictionDashboard() {
+  const [indicators, setIndicators] = useState([])
+  const [indicator, setIndicator] = useState('')
+  const [regions, setRegions] = useState([])
+  const [region, setRegion] = useState('')
+  const [payload, setPayload] = useState(null)
+  const [loadingIndicators, setLoadingIndicators] = useState(false)
+  const [loadingSeries, setLoadingSeries] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    async function loadIndicators() {
+      setLoadingIndicators(true)
+      setError('')
+      try {
+        const response = await fetch(`${API_BASE}/indikator`)
+        if (!response.ok) {
+          throw new Error('Gagal memuat daftar indikator')
+        }
+        const data = await response.json()
+        if (!active) {
+          return
+        }
+        setIndicators(data)
+        if (data.length) {
+          setIndicator((current) => current || data[0].indikator)
+        }
+      } catch (fetchError) {
+        if (active) {
+          setError(fetchError.message)
+        }
+      } finally {
+        if (active) {
+          setLoadingIndicators(false)
+        }
+      }
+    }
+
+    loadIndicators()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!indicator) {
+      return
+    }
+
+    let active = true
+    async function loadRegions() {
+      setLoadingSeries(true)
+      setError('')
+      try {
+        const response = await fetch(`${API_BASE}/wilayah?indikator=${encodeURIComponent(indicator)}`)
+        if (!response.ok) {
+          throw new Error('Gagal memuat wilayah')
+        }
+        const data = await response.json()
+        if (!active) {
+          return
+        }
+        const nextRegions = data.wilayah || []
+        setRegions(nextRegions)
+        setRegion((current) => (nextRegions.includes(current) ? current : nextRegions[0] || ''))
+      } catch (fetchError) {
+        if (active) {
+          setError(fetchError.message)
+          setRegions([])
+          setRegion('')
+          setPayload(null)
+        }
+      } finally {
+        if (active) {
+          setLoadingSeries(false)
+        }
+      }
+    }
+
+    loadRegions()
+    return () => {
+      active = false
+    }
+  }, [indicator])
+
+  useEffect(() => {
+    if (!indicator || !region) {
+      return
+    }
+
+    let active = true
+    async function loadSeries() {
+      setLoadingSeries(true)
+      setError('')
+      try {
+        const response = await fetch(
+          `${API_BASE}/data?indikator=${encodeURIComponent(indicator)}&wilayah=${encodeURIComponent(region)}`,
+        )
+        if (!response.ok) {
+          throw new Error('Gagal memuat data seri')
+        }
+        const data = await response.json()
+        if (active) {
+          setPayload(data)
+        }
+      } catch (fetchError) {
+        if (active) {
+          setPayload(null)
+          setError(fetchError.message)
+        }
+      } finally {
+        if (active) {
+          setLoadingSeries(false)
+        }
+      }
+    }
+
+    loadSeries()
+    return () => {
+      active = false
+    }
+  }, [indicator, region])
+
+  const indicatorMeta = indicators.find((item) => item.indikator === indicator)
+  const historical = payload?.historis || []
+  const projection = payload?.proyeksi || []
+  const summary = payload?.ringkasan
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm md:p-10">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <span className="mb-4 inline-flex rounded-full bg-amber-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-amber-700">
+              Trend Prediction
+            </span>
+            <h2 className="text-3xl font-bold leading-tight text-slate-900 md:text-4xl">
+              Prediksi tren terhubung ke API backend
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-slate-600 md:text-base">
+              Pilih indikator dan wilayah untuk melihat historis solid, proyeksi dashed, dan ringkasan keandalan model dari SQLite/FastAPI.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-600">
+            <p className="font-semibold text-slate-900">Data source</p>
+            <p>{indicatorMeta?.file_sumber || 'Menunggu indikator'}</p>
+          </div>
+        </div>
+
+        <div className="mt-8 grid gap-4 lg:grid-cols-2">
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-slate-700">Indikator</span>
+            <select
+              value={indicator}
+              onChange={(event) => setIndicator(event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-red-300 focus:ring-4 focus:ring-red-50"
+              disabled={loadingIndicators}
+            >
+              <option value="">Pilih indikator</option>
+              {indicators.map((item) => (
+                <option key={item.indikator} value={item.indikator}>
+                  {item.indikator}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="space-y-2">
+            <span className="text-sm font-semibold text-slate-700">Wilayah / Breakdown</span>
+            <select
+              value={region}
+              onChange={(event) => setRegion(event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-red-300 focus:ring-4 focus:ring-red-50"
+              disabled={!regions.length}
+            >
+              <option value="">Pilih wilayah</option>
+              {regions.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {error ? (
+          <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {error}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">R^2</p>
+          <p className="mt-2 text-3xl font-bold text-slate-900">{summary?.r_squared ?? '-'}</p>
+          <p className="mt-1 text-sm text-slate-500">Keandalan tren</p>
+        </div>
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Arah tren</p>
+          <p className="mt-2 text-3xl font-bold text-slate-900">{summary?.arah_tren || '-'}</p>
+          <p className="mt-1 text-sm text-slate-500">Output model</p>
+        </div>
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Tahun terakhir</p>
+          <p className="mt-2 text-3xl font-bold text-slate-900">{summary?.tahun_terakhir ?? '-'}</p>
+          <p className="mt-1 text-sm text-slate-500">Titik historis terbaru</p>
+        </div>
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Seri data</p>
+          <p className="mt-2 text-3xl font-bold text-slate-900">{historical.length + projection.length}</p>
+          <p className="mt-1 text-sm text-slate-500">Historis + proyeksi</p>
+        </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.4fr_0.6fr]">
+        <TrendPointChart historical={historical} projection={projection} unit={indicatorMeta?.satuan || payload?.indikator?.satuan} />
+
+        <div className="space-y-4">
+          <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Ringkasan angka</p>
+            <div className="mt-4 space-y-3 text-sm text-slate-700">
+              <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3">
+                <span>Nilai terakhir</span>
+                <span className="font-semibold text-slate-900">{summary?.nilai_terakhir ?? '-'}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3">
+                <span>Slope per tahun</span>
+                <span className="font-semibold text-slate-900">{summary?.slope_per_tahun ?? '-'}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3">
+                <span>Historis</span>
+                <span className="font-semibold text-slate-900">{historical.length} titik</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span>Proyeksi</span>
+                <span className="font-semibold text-slate-900">{projection.length} titik</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-dashed border-red-200 bg-red-50/60 p-6">
+            <p className="text-sm font-semibold text-red-800">Catatan model</p>
+            <p className="mt-2 text-sm leading-relaxed text-red-900/80">
+              {summary?.catatan || 'Model baseline memakai regresi linear sederhana dari data yang tersedia.'}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-900">Historis</h3>
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-wider text-slate-400">
+                <tr>
+                  <th className="py-2 pr-4">Tahun</th>
+                  <th className="py-2 pr-4">Nilai</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loadingSeries && !historical.length ? (
+                  <tr>
+                    <td className="py-3 text-slate-500" colSpan="2">
+                      Memuat data...
+                    </td>
+                  </tr>
+                ) : (
+                  historical.map((item) => (
+                    <tr key={`historical-${item.tahun}`}>
+                      <td className="py-3 pr-4 text-slate-600">{item.tahun}</td>
+                      <td className="py-3 pr-4 font-semibold text-slate-900">{item.nilai}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-900">Proyeksi</h3>
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="text-xs uppercase tracking-wider text-slate-400">
+                <tr>
+                  <th className="py-2 pr-4">Tahun</th>
+                  <th className="py-2 pr-4">Nilai</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loadingSeries && !projection.length ? (
+                  <tr>
+                    <td className="py-3 text-slate-500" colSpan="2">
+                      Memuat data...
+                    </td>
+                  </tr>
+                ) : (
+                  projection.map((item) => (
+                    <tr key={`projection-${item.tahun}`}>
+                      <td className="py-3 pr-4 text-slate-600">{item.tahun}</td>
+                      <td className="py-3 pr-4 font-semibold text-red-700">{item.nilai}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
   )
 }
 
@@ -237,7 +685,11 @@ export default function App() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-12">
-        {activeView === 'trend' ? <TrendPredictionView onBack={() => setActiveView('home')} /> : <HomeView onOpenTrend={() => setActiveView('trend')} />}
+        {activeView === 'trend' ? (
+          <TrendPredictionDashboard />
+        ) : (
+          <HomeView onOpenTrend={() => setActiveView('trend')} />
+        )}
       </main>
 
       <footer className="border-t border-slate-200 py-6">

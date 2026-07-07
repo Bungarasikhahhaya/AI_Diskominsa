@@ -34,6 +34,9 @@ Thumbs.db
 # Generated database and index files
 chroma_db/
 indexed_datasets.json
+backend/trend_prediction.db
+*.sqlite3
+*.db
 
 # Project artifacts
 data.zip
