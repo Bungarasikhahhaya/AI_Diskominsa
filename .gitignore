@@ -1,0 +1,45 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment files
+.env
+.env.*
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test and coverage
+.pytest_cache/
+coverage.xml
+htmlcov/
+
+# Local development
+.vscode/
+.idea/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Generated database and index files
+chroma_db/
+indexed_datasets.json
+
+# Project artifacts
+data.zip
+
+# Local data files
+data/csv/
+
+# Frontend dependencies
+frontend/node_modules/
