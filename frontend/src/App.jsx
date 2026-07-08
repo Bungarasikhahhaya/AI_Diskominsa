@@ -100,7 +100,6 @@ function TrendPointChart({ historical, projection, unit }) {
       points: {
         historical: makePath(historical),
         projection: makePath(projection),
-        combined: makePath([...historical, ...projection]),
       },
       viewBox: `0 0 ${width} ${height}`,
       minY: minValue,
@@ -124,7 +123,7 @@ function TrendPointChart({ historical, projection, unit }) {
     <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 px-2">
         <div>
-          <p className="text-sm font-semibold text-slate-900">Historis solid, proyeksi dashed</p>
+          <p className="text-sm font-semibold text-slate-900">Historis hitam, proyeksi merah</p>
           <p className="text-xs text-slate-500">Satuan: {unit || '-'}</p>
         </div>
         <div className="flex flex-wrap gap-3 text-xs font-semibold text-slate-600">
@@ -179,7 +178,7 @@ function TrendPointChart({ historical, projection, unit }) {
             )
           })}
 
-          {points.combined && <path d={points.combined} fill="none" stroke="#0f172a" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />}
+          {points.historical && <path d={points.historical} fill="none" stroke="#0f172a" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />}
 
           {historical.length > 0 && projection.length > 0 && historicalEndYear !== null ? (
             <path
@@ -413,6 +412,10 @@ function TrendPredictionDashboard() {
             {error}
           </div>
         ) : null}
+
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Jika sebuah wilayah hanya punya historis atau hanya proyeksi, itu karena seri data di database memang tidak lengkap untuk dua sisi sekaligus pada pilihan itu.
+        </div>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
