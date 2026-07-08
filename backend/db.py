@@ -36,6 +36,16 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
             FOREIGN KEY (indikator_id) REFERENCES indikator (id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS historis_detail (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            indikator_id INTEGER NOT NULL,
+            wilayah TEXT NOT NULL,
+            tahun INTEGER NOT NULL,
+            nilai REAL NOT NULL,
+            detail_json TEXT,
+            FOREIGN KEY (indikator_id) REFERENCES indikator (id) ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS proyeksi (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             indikator_id INTEGER NOT NULL,
@@ -52,8 +62,20 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
             FOREIGN KEY (indikator_id) REFERENCES indikator (id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS proyeksi_detail (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            indikator_id INTEGER NOT NULL,
+            wilayah TEXT NOT NULL,
+            tahun INTEGER NOT NULL,
+            nilai REAL NOT NULL,
+            detail_json TEXT,
+            FOREIGN KEY (indikator_id) REFERENCES indikator (id) ON DELETE CASCADE
+        );
+
         CREATE INDEX IF NOT EXISTS idx_indikator_nama ON indikator (nama);
         CREATE INDEX IF NOT EXISTS idx_historis_indikator_wilayah ON historis (indikator_id, wilayah);
+        CREATE INDEX IF NOT EXISTS idx_historis_detail_indikator_wilayah ON historis_detail (indikator_id, wilayah);
         CREATE INDEX IF NOT EXISTS idx_proyeksi_indikator_wilayah ON proyeksi (indikator_id, wilayah);
+        CREATE INDEX IF NOT EXISTS idx_proyeksi_detail_indikator_wilayah ON proyeksi_detail (indikator_id, wilayah);
         '''
     )

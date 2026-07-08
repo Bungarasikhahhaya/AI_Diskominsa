@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from pathlib import Path
-from typing import Iterable
 
 import pandas as pd
 
@@ -22,7 +22,15 @@ SUMMARY_COLUMNS = {
     'arah_tren',
     'catatan',
 }
-HISTORICAL_COLUMNS = {'wilayah', 'tahun', 'nilai', 'level_wilayah', 'satuan'}
+IDENTITY_WILAYAH_COLUMNS = (
+    'wilayah',
+    'bps_nama_desa',
+    'bps_nama_kecamatan',
+    'bps_nama_kabupaten_kota',
+    'bps_nama_provinsi',
+    'bps_nama_kab',
+    'bps_nama_kota',
+)
 PROJECTION_YEAR_PATTERN = re.compile(r'^tahun_\+\d+$')
 PROJECTION_VALUE_PATTERN = re.compile(r'^proyeksi_\+\d+$')
 
@@ -45,21 +53,28 @@ def normalize_text(value: object) -> str:
     return text
 
 
-def build_series_label(row: pd.Series, excluded_columns: set[str]) -> str:
-    parts: list[str] = []
+def extract_wilayah(row: pd.Series) -> str:
+    for column in IDENTITY_WILAYAH_COLUMNS:
+        if column in row.index:
+            value = normalize_text(row[column])
+            if value:
+                return value
+    return '-'
+
+
+def extract_detail_payload(row: pd.Series, excluded_columns: set[str]) -> dict[str, str]:
+    detail: dict[str, str] = {}
     for column in row.index:
         if column in excluded_columns:
+            continue
+        if column in IDENTITY_WILAYAH_COLUMNS:
             continue
         if PROJECTION_YEAR_PATTERN.match(column) or PROJECTION_VALUE_PATTERN.match(column):
             continue
         value = normalize_text(row[column])
-        if not value:
-            continue
-        if column == 'wilayah':
-            parts.insert(0, value)
-        else:
-            parts.append(f'{column}={value}')
-    return ' | '.join(parts) if parts else '-'
+        if value:
+            detail[column] = value
+    return detail
 
 
 def to_int(value: object) -> int | None:
@@ -108,62 +123,161 @@ def upsert_indicator(connection: sqlite3.Connection, row: pd.Series) -> int:
 
 def load_historical_series(connection: sqlite3.Connection, indicator_id: int, csv_path: Path) -> int:
     dataframe = read_csv_fallback(csv_path)
-    inserted = 0
+    detail_rows: list[dict[str, object]] = []
     for _, row in dataframe.iterrows():
-        wilayah = build_series_label(row, HISTORICAL_COLUMNS)
+        wilayah = extract_wilayah(row)
         tahun = to_int(row.get('tahun'))
         nilai = to_float(row.get('nilai'))
         if tahun is None or nilai is None:
             continue
-        connection.execute(
-            '''
-            INSERT OR REPLACE INTO historis (indikator_id, wilayah, tahun, nilai)
-            VALUES (?, ?, ?, ?)
-            ''',
-            (indicator_id, wilayah, tahun, nilai),
+        detail_rows.append(
+            {
+                'indikator_id': indicator_id,
+                'wilayah': wilayah,
+                'tahun': tahun,
+                'nilai': nilai,
+                'detail_json': json.dumps(
+                    extract_detail_payload(row, {'tahun', 'nilai', 'level_wilayah', 'satuan'}),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+            }
         )
-        inserted += 1
-    return inserted
 
+    if not detail_rows:
+        return 0
 
-def load_projection_series(connection: sqlite3.Connection, indicator_id: int, row: pd.Series) -> int:
-    wilayah = build_series_label(row, SUMMARY_COLUMNS)
-    inserted = 0
-    tahun_terakhir = to_int(row.get('tahun_terakhir'))
-    nilai_terakhir = to_float(row.get('nilai_terakhir'))
-    slope_per_tahun = to_float(row.get('slope_per_tahun'))
-    r_squared = to_float(row.get('r_squared'))
-    arah_tren = normalize_text(row.get('arah_tren'))
-    catatan = normalize_text(row.get('catatan'))
-
-    for index in range(1, 4):
-        tahun_target = to_int(row.get(f'tahun_+{index}'))
-        nilai_target = to_float(row.get(f'proyeksi_+{index}'))
-        if tahun_target is None or nilai_target is None:
-            continue
-        connection.execute(
-            '''
-            INSERT OR REPLACE INTO proyeksi (
-                indikator_id, wilayah, tahun, nilai, tahun_terakhir,
-                nilai_terakhir, slope_per_tahun, r_squared, arah_tren, catatan
+    detail_df = pd.DataFrame(detail_rows)
+    connection.executemany(
+        '''
+        INSERT INTO historis_detail (indikator_id, wilayah, tahun, nilai, detail_json)
+        VALUES (?, ?, ?, ?, ?)
+        ''',
+        [
+            (
+                row.indikator_id,
+                row.wilayah,
+                int(row.tahun),
+                float(row.nilai),
+                row.detail_json,
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''',
+            for row in detail_df.itertuples(index=False)
+        ],
+    )
+
+    grouped = detail_df.groupby(['wilayah', 'tahun'], as_index=False)['nilai'].mean()
+    connection.executemany(
+        '''
+        INSERT OR REPLACE INTO historis (indikator_id, wilayah, tahun, nilai)
+        VALUES (?, ?, ?, ?)
+        ''',
+        [
             (
                 indicator_id,
-                wilayah,
-                tahun_target,
-                nilai_target,
-                tahun_terakhir,
-                nilai_terakhir,
-                slope_per_tahun,
-                r_squared,
-                arah_tren,
-                catatan,
-            ),
+                row.wilayah,
+                int(row.tahun),
+                float(row.nilai),
+            )
+            for row in grouped.itertuples(index=False)
+        ],
+    )
+    return int(len(grouped))
+
+
+def load_projection_series(connection: sqlite3.Connection, indicator_id: int, rows: pd.DataFrame) -> int:
+    detail_rows: list[dict[str, object]] = []
+
+    for _, row in rows.iterrows():
+        wilayah = extract_wilayah(row)
+        tahun_terakhir = to_int(row.get('tahun_terakhir'))
+        nilai_terakhir = to_float(row.get('nilai_terakhir'))
+        slope_per_tahun = to_float(row.get('slope_per_tahun'))
+        r_squared = to_float(row.get('r_squared'))
+        arah_tren = normalize_text(row.get('arah_tren'))
+        catatan = normalize_text(row.get('catatan'))
+        detail_payload = json.dumps(
+            extract_detail_payload(row, SUMMARY_COLUMNS),
+            ensure_ascii=False,
+            sort_keys=True,
         )
-        inserted += 1
-    return inserted
+
+        for index in range(1, 4):
+            tahun_target = to_int(row.get(f'tahun_+{index}'))
+            nilai_target = to_float(row.get(f'proyeksi_+{index}'))
+            if tahun_target is None or nilai_target is None:
+                continue
+            detail_rows.append(
+                {
+                    'indikator_id': indicator_id,
+                    'wilayah': wilayah,
+                    'tahun': tahun_target,
+                    'nilai': nilai_target,
+                    'tahun_terakhir': tahun_terakhir,
+                    'nilai_terakhir': nilai_terakhir,
+                    'slope_per_tahun': slope_per_tahun,
+                    'r_squared': r_squared,
+                    'arah_tren': arah_tren,
+                    'catatan': catatan,
+                    'detail_json': detail_payload,
+                }
+            )
+
+    if not detail_rows:
+        return 0
+
+    detail_df = pd.DataFrame(detail_rows)
+    connection.executemany(
+        '''
+        INSERT INTO proyeksi_detail (indikator_id, wilayah, tahun, nilai, detail_json)
+        VALUES (?, ?, ?, ?, ?)
+        ''',
+        [
+            (
+                row.indikator_id,
+                row.wilayah,
+                int(row.tahun),
+                float(row.nilai),
+                row.detail_json,
+            )
+            for row in detail_df.itertuples(index=False)
+        ],
+    )
+
+    grouped = detail_df.groupby(['wilayah', 'tahun'], as_index=False).agg(
+        nilai=('nilai', 'mean'),
+        tahun_terakhir=('tahun_terakhir', 'max'),
+        nilai_terakhir=('nilai_terakhir', 'max'),
+        slope_per_tahun=('slope_per_tahun', 'mean'),
+        r_squared=('r_squared', 'mean'),
+        arah_tren=('arah_tren', 'first'),
+        catatan=('catatan', 'first'),
+    )
+
+    connection.executemany(
+        '''
+        INSERT OR REPLACE INTO proyeksi (
+            indikator_id, wilayah, tahun, nilai, tahun_terakhir,
+            nilai_terakhir, slope_per_tahun, r_squared, arah_tren, catatan
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''',
+        [
+            (
+                indicator_id,
+                row.wilayah,
+                int(row.tahun),
+                float(row.nilai),
+                int(row.tahun_terakhir) if pd.notna(row.tahun_terakhir) else None,
+                float(row.nilai_terakhir) if pd.notna(row.nilai_terakhir) else None,
+                float(row.slope_per_tahun) if pd.notna(row.slope_per_tahun) else None,
+                float(row.r_squared) if pd.notna(row.r_squared) else None,
+                row.arah_tren,
+                row.catatan,
+            )
+            for row in grouped.itertuples(index=False)
+        ],
+    )
+    return int(len(grouped))
 
 
 def rebuild_database() -> dict[str, int]:
@@ -208,12 +322,13 @@ def rebuild_database() -> dict[str, int]:
             indicator_id = indicator_id_by_file[file_key]
             counts['historis'] += load_historical_series(connection, indicator_id, csv_path)
 
-        for _, row in projection_df.iterrows():
-            file_key = normalize_text(row.get('file_sumber'))
+        for file_key, subset in projection_df.groupby(projection_df['file_sumber'].map(normalize_text)):
+            if not file_key:
+                continue
             indicator_id = indicator_id_by_file.get(file_key)
             if indicator_id is None:
                 continue
-            counts['proyeksi'] += load_projection_series(connection, indicator_id, row)
+            counts['proyeksi'] += load_projection_series(connection, indicator_id, subset)
 
         connection.commit()
 

@@ -209,6 +209,55 @@ function TrendPointChart({ historical, projection, unit }) {
   )
 }
 
+function HistoricalDetailTable({ rows }) {
+  if (!rows.length) {
+    return null
+  }
+
+  const parsedRows = rows.flatMap((row) => {
+    if (!row.detail_json) {
+      return [{ tahun: row.tahun, nilai: row.nilai, detail: '-' }]
+    }
+
+    try {
+      const detail = JSON.parse(row.detail_json)
+      const detailText = Object.entries(detail).map(([key, value]) => `${key}=${value}`).join(' | ')
+      return [{ tahun: row.tahun, nilai: row.nilai, detail: detailText || '-' }]
+    } catch {
+      return [{ tahun: row.tahun, nilai: row.nilai, detail: '-' }]
+    }
+  })
+
+  return (
+    <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+      <h3 className="text-lg font-bold text-slate-900">Detail historis tambahan</h3>
+      <p className="mt-2 text-sm text-slate-600">
+        Detail ini menyimpan breakdown seperti bulan/triwulan tanpa dipakai sebagai join key utama.
+      </p>
+      <div className="mt-4 overflow-x-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="text-xs uppercase tracking-wider text-slate-400">
+            <tr>
+              <th className="py-2 pr-4">Tahun</th>
+              <th className="py-2 pr-4">Nilai</th>
+              <th className="py-2 pr-4">Detail</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {parsedRows.slice(0, 8).map((row) => (
+              <tr key={`${row.tahun}-${row.detail}`}>
+                <td className="py-3 pr-4 text-slate-600">{row.tahun}</td>
+                <td className="py-3 pr-4 font-semibold text-slate-900">{row.nilai}</td>
+                <td className="py-3 pr-4 text-slate-600">{row.detail}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function TrendPredictionDashboard() {
   const [indicators, setIndicators] = useState([])
   const [indicator, setIndicator] = useState('')
@@ -344,6 +393,7 @@ function TrendPredictionDashboard() {
   const indicatorMeta = indicators.find((item) => item.indikator === indicator)
   const selectedRegionDetail = regionDetails.find((item) => item.wilayah === region)
   const historical = payload?.historis || []
+  const historicalDetail = payload?.historis_detail || []
   const projection = payload?.proyeksi || []
   const summary = payload?.ringkasan
 
@@ -537,6 +587,8 @@ function TrendPredictionDashboard() {
           </div>
         </div>
       </section>
+
+      <HistoricalDetailTable rows={historicalDetail} />
     </div>
   )
 }

@@ -102,6 +102,41 @@ def list_wilayah(indikator: str = Query(..., min_length=1)) -> dict[str, object]
     }
 
 
+@app.get('/detail-historis')
+def get_historical_detail(indikator: str = Query(..., min_length=1), wilayah: str = Query(..., min_length=1)) -> dict[str, object]:
+    ensure_database()
+    with get_connection() as connection:
+        indicator_row = connection.execute(
+            'SELECT id FROM indikator WHERE nama = ?',
+            (indikator,),
+        ).fetchone()
+        if indicator_row is None:
+            raise HTTPException(status_code=404, detail='Indikator tidak ditemukan')
+
+        rows = connection.execute(
+            '''
+            SELECT tahun, nilai, detail_json
+            FROM historis_detail
+            WHERE indikator_id = ? AND wilayah = ?
+            ORDER BY tahun
+            ''',
+            (indicator_row['id'], wilayah),
+        ).fetchall()
+
+    return {
+        'indikator': indikator,
+        'wilayah': wilayah,
+        'detail': [
+            {
+                'tahun': row['tahun'],
+                'nilai': row['nilai'],
+                'detail_json': row['detail_json'],
+            }
+            for row in rows
+        ],
+    }
+
+
 @app.get('/data')
 def get_data(
     indikator: str = Query(..., min_length=1),
@@ -120,6 +155,16 @@ def get_data(
             '''
             SELECT tahun, nilai
             FROM historis
+            WHERE indikator_id = ? AND wilayah = ?
+            ORDER BY tahun
+            ''',
+            (indicator_row['id'], wilayah),
+        ).fetchall()
+
+        historical_detail_rows = connection.execute(
+            '''
+            SELECT tahun, nilai, detail_json
+            FROM historis_detail
             WHERE indikator_id = ? AND wilayah = ?
             ORDER BY tahun
             ''',
@@ -167,6 +212,14 @@ def get_data(
                 'tipe': 'historis',
             }
             for row in historical_rows
+        ],
+        'historis_detail': [
+            {
+                'tahun': row['tahun'],
+                'nilai': row['nilai'],
+                'detail_json': row['detail_json'],
+            }
+            for row in historical_detail_rows
         ],
         'proyeksi': [
             {
