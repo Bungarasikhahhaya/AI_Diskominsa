@@ -56,6 +56,25 @@ def list_wilayah(indikator: str = Query(..., min_length=1)) -> dict[str, object]
         if indicator_row is None:
             raise HTTPException(status_code=404, detail='Indikator tidak ditemukan')
 
+        historical_rows = connection.execute(
+            '''
+            SELECT wilayah, COUNT(*) AS historical_count
+            FROM historis
+            WHERE indikator_id = ?
+            GROUP BY wilayah
+            ''',
+            (indicator_row['id'],),
+        ).fetchall()
+        projection_rows = connection.execute(
+            '''
+            SELECT wilayah, COUNT(*) AS projection_count
+            FROM proyeksi
+            WHERE indikator_id = ?
+            GROUP BY wilayah
+            ''',
+            (indicator_row['id'],),
+        ).fetchall()
+
         rows = connection.execute(
             '''
             SELECT wilayah FROM historis WHERE indikator_id = ?
@@ -66,9 +85,20 @@ def list_wilayah(indikator: str = Query(..., min_length=1)) -> dict[str, object]
             (indicator_row['id'], indicator_row['id']),
         ).fetchall()
 
+    historical_count_by_region = {row['wilayah']: row['historical_count'] for row in historical_rows}
+    projection_count_by_region = {row['wilayah']: row['projection_count'] for row in projection_rows}
+
     return {
         'indikator': indikator,
         'wilayah': [row['wilayah'] for row in rows],
+        'wilayah_detail': [
+            {
+                'wilayah': row['wilayah'],
+                'historical_count': int(historical_count_by_region.get(row['wilayah'], 0)),
+                'projection_count': int(projection_count_by_region.get(row['wilayah'], 0)),
+            }
+            for row in rows
+        ],
     }
 
 

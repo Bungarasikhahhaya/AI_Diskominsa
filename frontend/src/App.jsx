@@ -100,6 +100,7 @@ function TrendPointChart({ historical, projection, unit }) {
       points: {
         historical: makePath(historical),
         projection: makePath(projection),
+        combined: makePath([...historical, ...projection]),
       },
       viewBox: `0 0 ${width} ${height}`,
       minY: minValue,
@@ -117,6 +118,7 @@ function TrendPointChart({ historical, projection, unit }) {
   }
 
   const years = Array.from(new Set(allPoints.map((point) => point.tahun))).sort((a, b) => a - b)
+  const historicalEndYear = historical.length ? Math.max(...historical.map((point) => point.tahun)) : null
 
   return (
     <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
@@ -177,8 +179,19 @@ function TrendPointChart({ historical, projection, unit }) {
             )
           })}
 
-          {points.historical && <path d={points.historical} fill="none" stroke="#0f172a" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />}
-          {points.projection && <path d={points.projection} fill="none" stroke="#b91c1c" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="10 8" />}
+          {points.combined && <path d={points.combined} fill="none" stroke="#0f172a" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />}
+
+          {historical.length > 0 && projection.length > 0 && historicalEndYear !== null ? (
+            <path
+              d={points.projection}
+              fill="none"
+              stroke="#b91c1c"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray="10 8"
+            />
+          ) : null}
 
           {historical.map((point) => {
             const x = 54 + ((point.tahun - years[0]) / Math.max(years[years.length - 1] - years[0], 1)) * (800 - 108)
@@ -201,6 +214,7 @@ function TrendPredictionDashboard() {
   const [indicators, setIndicators] = useState([])
   const [indicator, setIndicator] = useState('')
   const [regions, setRegions] = useState([])
+  const [regionDetails, setRegionDetails] = useState([])
   const [region, setRegion] = useState('')
   const [payload, setPayload] = useState(null)
   const [loadingIndicators, setLoadingIndicators] = useState(false)
@@ -261,8 +275,15 @@ function TrendPredictionDashboard() {
           return
         }
         const nextRegions = data.wilayah || []
+        setRegionDetails(data.wilayah_detail || [])
         setRegions(nextRegions)
-        setRegion((current) => (nextRegions.includes(current) ? current : nextRegions[0] || ''))
+        const preferredRegion = (data.wilayah_detail || []).find((item) => item.historical_count > 0) || data.wilayah_detail?.[0]
+        setRegion((current) => {
+          if (current && nextRegions.includes(current)) {
+            return current
+          }
+          return preferredRegion?.wilayah || nextRegions[0] || ''
+        })
       } catch (fetchError) {
         if (active) {
           setError(fetchError.message)
@@ -322,6 +343,7 @@ function TrendPredictionDashboard() {
   }, [indicator, region])
 
   const indicatorMeta = indicators.find((item) => item.indikator === indicator)
+  const selectedRegionDetail = regionDetails.find((item) => item.wilayah === region)
   const historical = payload?.historis || []
   const projection = payload?.proyeksi || []
   const summary = payload?.ringkasan
@@ -344,6 +366,9 @@ function TrendPredictionDashboard() {
           <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-600">
             <p className="font-semibold text-slate-900">Data source</p>
             <p>{indicatorMeta?.file_sumber || 'Menunggu indikator'}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Historis: {selectedRegionDetail?.historical_count ?? 0} | Proyeksi: {selectedRegionDetail?.projection_count ?? 0}
+            </p>
           </div>
         </div>
 
