@@ -7,9 +7,9 @@ from services.api_client import get_dataset
 from services.preprocess import convert_to_documents
 from services.vectordb import insert_documents
 
-# ==========================
+# ======================================================
 # Konfigurasi
-# ==========================
+# ======================================================
 
 INDEX_FILE = "indexed_datasets.json"
 CSV_FOLDER = "data/csv"
@@ -17,9 +17,9 @@ CSV_FOLDER = "data/csv"
 os.makedirs(CSV_FOLDER, exist_ok=True)
 
 
-# ==========================
-# Membaca dataset yang sudah di-index
-# ==========================
+# ======================================================
+# Load dataset yang sudah di-index
+# ======================================================
 
 def load_indexed():
 
@@ -27,6 +27,7 @@ def load_indexed():
         return set()
 
     try:
+
         with open(INDEX_FILE, "r", encoding="utf-8") as f:
 
             content = f.read().strip()
@@ -41,13 +42,14 @@ def load_indexed():
         return set()
 
 
-# ==========================
-# Menyimpan dataset yang sudah di-index
-# ==========================
+# ======================================================
+# Simpan dataset yang sudah di-index
+# ======================================================
 
 def save_indexed(indexed):
 
     with open(INDEX_FILE, "w", encoding="utf-8") as f:
+
         json.dump(
             list(indexed),
             f,
@@ -56,9 +58,9 @@ def save_indexed(indexed):
         )
 
 
-# ==========================
-# Menyimpan CSV
-# ==========================
+# ======================================================
+# Simpan CSV
+# ======================================================
 
 def save_csv(title, rows):
 
@@ -83,9 +85,9 @@ def save_csv(title, rows):
     return filepath
 
 
-# ==========================
+# ======================================================
 # Build Index
-# ==========================
+# ======================================================
 
 def build_index():
 
@@ -96,8 +98,10 @@ def build_index():
     total_dataset = len(catalog)
 
     print("=" * 80)
-    print(f"Total Dataset            : {total_dataset}")
-    print(f"Sudah Pernah Di-index    : {len(indexed)}")
+    print("MEMULAI INDEXING")
+    print("=" * 80)
+    print(f"Total Dataset  : {total_dataset}")
+    print(f"Sudah Di-index : {len(indexed)}")
     print("=" * 80)
 
     total_document = 0
@@ -111,12 +115,25 @@ def build_index():
         description = dataset.get("description", "")
         identifier = dataset.get("identifier")
 
+        # ==================================================
+        # URL dataset (opsional)
+        # ==================================================
+
+        dataset_url = (
+            dataset.get("landingPage")
+            or (dataset.get("distribution") or [{}])[0].get("accessURL")
+            or dataset.get("url")
+            or dataset.get("link")
+            or dataset.get("dataset_url")
+            or ""
+        )
+
         print("\n" + "-" * 80)
         print(f"[{i}/{total_dataset}] {title}")
 
         if not identifier:
 
-            print("❌ Identifier tidak ditemukan.")
+            print("❌ Identifier tidak ditemukan")
 
             failed += 1
 
@@ -124,7 +141,7 @@ def build_index():
 
         if identifier in indexed:
 
-            print("⏩ Dataset sudah pernah di-index.")
+            print("⏩ Dataset sudah pernah di-index")
 
             skipped += 1
 
@@ -132,11 +149,15 @@ def build_index():
 
         try:
 
+            # ==================================================
+            # Ambil data API
+            # ==================================================
+
             api_response = get_dataset(identifier)
 
             if api_response is None:
 
-                print("❌ Gagal mengambil API.")
+                print("❌ Gagal mengambil data API")
 
                 failed += 1
 
@@ -152,13 +173,15 @@ def build_index():
 
             if len(rows) == 0:
 
-                print("⚠ Dataset kosong.")
+                print("⚠ Dataset kosong")
 
                 continue
 
-            # ======================
+            print(f"Jumlah Row : {len(rows)}")
+
+            # ==================================================
             # Simpan CSV
-            # ======================
+            # ==================================================
 
             csv_file = save_csv(
                 title,
@@ -167,24 +190,41 @@ def build_index():
 
             print(f"💾 CSV : {csv_file}")
 
-            # ======================
-            # Convert ke document
-            # ======================
+            if dataset_url:
+                print(f"🔗 URL : {dataset_url}")
+
+            # ==================================================
+            # Convert menjadi documents
+            # ==================================================
 
             documents = convert_to_documents(
-                title,
-                description,
-                api_response
+                title=title,
+                description=description,
+                api_response=api_response
             )
 
-            # ======================
+            if len(documents) == 0:
+
+                print("⚠ Tidak ada dokumen yang dibuat")
+
+                continue
+
+            # ==================================================
             # Simpan ke ChromaDB
-            # ======================
+            # ==================================================
 
             insert_documents(
-                documents,
-                title,
-                identifier
+
+                documents=documents,
+
+                rows=rows,
+
+                title=title,
+
+                identifier=identifier,
+
+                dataset_url=dataset_url
+
             )
 
             total_document += len(documents)
@@ -195,18 +235,20 @@ def build_index():
 
             save_indexed(indexed)
 
-            print(f"✅ Dokumen dibuat : {len(documents)}")
-            print(f"📄 Total dokumen : {total_document}")
+            print(f"✅ Row          : {len(rows)}")
+            print(f"✅ Dokumen      : {len(documents)}")
+            print(f"📄 Total Doc   : {total_document}")
 
         except Exception as e:
 
             failed += 1
 
             print("❌ ERROR")
-
+            print(type(e).__name__)
             print(e)
 
     print("\n")
+
     print("=" * 80)
     print("INDEXING SELESAI")
     print("=" * 80)
@@ -217,5 +259,10 @@ def build_index():
     print("=" * 80)
 
 
+# ======================================================
+# Main
+# ======================================================
+
 if __name__ == "__main__":
+
     build_index()

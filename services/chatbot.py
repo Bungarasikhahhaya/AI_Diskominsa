@@ -1,44 +1,67 @@
-from langchain_google_genai import ChatGoogleGenerativeAI
-from config import GOOGLE_API_KEY
-from services.rag import search
+from services.query_parser import answer_question, parse_question
+from services.search_engine import search
+from services.llm import generate_answer
+import services.data_facts as data_facts
 
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    google_api_key=GOOGLE_API_KEY
-)
+
+def build_answer(item):
+
+    metadata = item["metadata"]
+
+    document = item["document"]
+
+    dataset = metadata.get("dataset", "Dataset")
+
+    response = []
+
+    response.append(f"Berdasarkan dataset **{dataset}**, diperoleh informasi berikut:\n")
+
+    response.append(document)
+
+    if metadata.get("url"):
+
+        response.append(f"\nSumber data: {metadata['url']}")
+
+    return "\n".join(response)
 
 
 def ask(question):
 
+    parsed = parse_question(question)
+    metric_token = data_facts._find_metric_token(parsed.get("keywords", []))
+
+    answer_text, source_path = answer_question(question)
+
+    if answer_text:
+        response = (
+            f"Berdasarkan hasil pencarian langsung di dataset, jawabannya adalah: {answer_text}"
+        )
+        if source_path:
+            response += f"\nSumber data: {source_path}"
+        return response
+
+    # Do not attempt dataset/semantic fallback for general knowledge questions
+    if metric_token is None:
+        return (
+            "Maaf, saya hanya memberikan jawaban ketika pertanyaan berhubungan dengan data/statistik yang ada di dataset. "
+            "Untuk pertanyaan umum (mis. 'siapa presiden'), coba mesin pencari atau ajukan pertanyaan terkait data."
+        )
+
     results = search(question)
 
-    documents = results.get("documents", [[]])
+    if len(results) == 0:
 
-    if not documents or not documents[0]:
-        return "Maaf, saya tidak menemukan data yang sesuai."
+        return (
+            "Maaf, saya tidak menemukan data yang sesuai "
+            "dengan pertanyaan Anda."
+        )
 
-    context = "\n\n".join(documents[0])
+    answer = generate_answer(question, results[:3])
 
-    prompt = f"""
-Anda adalah AI Chatbot Satu Data Aceh.
+    if answer:
 
-Gunakan HANYA informasi yang terdapat pada konteks berikut untuk menjawab pertanyaan.
+        return answer
 
-Jika jawabannya tidak ada pada konteks, jawab:
+    best_result = results[0]
 
-"Maaf, data yang diminta tidak tersedia pada database."
-
-=====================
-KONTEKS
-
-{context}
-
-=====================
-
-Pertanyaan:
-{question}
-"""
-
-    response = llm.invoke(prompt)
-
-    return response.content
+    return build_answer(best_result)
