@@ -34,9 +34,21 @@ Thumbs.db
 # Generated database and index files
 chroma_db/
 indexed_datasets.json
+backend/trend_prediction.db
+*.sqlite3
+*.db
 
 # Project artifacts
 data.zip
+audit_kualitas_dataset.csv
+ringkasan_pembersihan.csv
+dataset_bersih/
+hasil_proyeksi/
+data/data/
+__pycache__/
+
+# Root-level Python project files that are generated locally
+*.pyc
 
 # Local data files
 data/csv/
