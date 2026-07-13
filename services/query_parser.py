@@ -37,7 +37,8 @@ ACEH_REGIONS = [
     "Langsa",
     "Lhokseumawe",
     "Sabang",
-    "Subulussalam"
+    "Subulussalam",
+    "Aceh"
 ]
 
 # =====================================
