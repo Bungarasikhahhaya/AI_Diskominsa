@@ -4,7 +4,8 @@ import sqlite3
 ROOT_DIR = Path(__file__).resolve().parents[1]
 BACKEND_DIR = Path(__file__).resolve().parent
 DB_PATH = BACKEND_DIR / 'trend_prediction.db'
-PROJECTION_CSV = ROOT_DIR / 'hasil_proyeksi' / 'proyeksi_semua_indikator.csv'
+PROJECTION_CSV_WITH_INSIGHT = ROOT_DIR / 'hasil_proyeksi' / 'proyeksi_dengan_insight.csv'
+PROJECTION_CSV = PROJECTION_CSV_WITH_INSIGHT if PROJECTION_CSV_WITH_INSIGHT.exists() else ROOT_DIR / 'hasil_proyeksi' / 'proyeksi_semua_indikator.csv'
 HISTORICAL_DIR = ROOT_DIR / 'dataset_bersih'
 
 
@@ -58,6 +59,7 @@ def ensure_schema(connection: sqlite3.Connection) -> None:
             r_squared REAL,
             arah_tren TEXT,
             catatan TEXT,
+            insight_text TEXT,
             UNIQUE(indikator_id, wilayah, tahun),
             FOREIGN KEY (indikator_id) REFERENCES indikator (id) ON DELETE CASCADE
         );
