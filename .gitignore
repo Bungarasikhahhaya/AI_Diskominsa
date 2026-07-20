@@ -1,27 +1,27 @@
 # Python cache
-__pycache__/
-*.py[cod]
-*$py.class
+backend/__pycache__/
+backend/**/*.py[cod]
+backend/**/$py.class
 
 # Environment files
-.env
-.env.*
+backend/.env
+backend/.env.*
 
 # Virtual environments
-venv/
-env/
-.venv/
+backend/venv/
+backend/env/
+backend/.venv/
 
 # Python packaging
-build/
-dist/
-*.egg-info/
-.eggs/
+backend/build/
+backend/dist/
+backend/*.egg-info/
+backend/.eggs/
 
 # Test and coverage
-.pytest_cache/
-coverage.xml
-htmlcov/
+backend/.pytest_cache/
+backend/coverage.xml
+backend/htmlcov/
 
 # Local development
 .vscode/
@@ -30,6 +30,19 @@ htmlcov/
 # System files
 .DS_Store
 Thumbs.db
+
+# Backend generated artifacts
+backend/chroma_db/
+backend/indexed_datasets.json
+backend/diagnostic_output.txt
+
+# Local backend data files
+backend/data/csv/
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
 
 # Generated database and index files
 chroma_db/
@@ -53,5 +66,10 @@ __pycache__/
 # Local data files
 data/csv/
 
-# Frontend dependencies
+# Frontend dependencies and build output
 frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Project artifacts
+*.zip
