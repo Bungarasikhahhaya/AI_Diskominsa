@@ -40,7 +40,6 @@ def ask(question):
         response = f"{intro}\n\n**Hasil terverifikasi**\n{answer_text}"
         if source_path:
             response += f"\n\n**Sumber data**\n{source_path}"
-        response += "\n\n_Nilai dan sumber di atas diambil langsung dari dataset yang cocok._"
         return response
 
     # A recognized statistical metric must only be answered by the factual
