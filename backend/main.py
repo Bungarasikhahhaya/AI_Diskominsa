@@ -2,11 +2,16 @@ from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+import sys, os
+sys.path.append(os.path.dirname(__file__))
+from backend.routes.chat import router as chat_router
 
 from .db import DB_PATH, get_connection
 from .loader import ensure_database
 
 app = FastAPI(title='SADA-AI Trend Prediction API', version='0.1.0')
+
+app.include_router(chat_router)
 
 app.add_middleware(
     CORSMiddleware,
