@@ -211,7 +211,6 @@ export default function ChatbotPage() {
           <section className="rounded-[32px] bg-white border border-slate-200 p-6 shadow-sm">
             <div className="max-w-4xl mx-auto">
               <div className="relative flex items-center gap-3 rounded-[28px] border border-slate-200 bg-slate-50 p-4 shadow-sm">
-                <button className="rounded-3xl bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">Upload File</button>
                 <input
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
