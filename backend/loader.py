@@ -21,6 +21,7 @@ SUMMARY_COLUMNS = {
     'r_squared',
     'arah_tren',
     'catatan',
+    'insight_text',
 }
 IDENTITY_WILAYAH_COLUMNS = (
     'wilayah',
@@ -195,6 +196,7 @@ def load_projection_series(connection: sqlite3.Connection, indicator_id: int, ro
         r_squared = to_float(row.get('r_squared'))
         arah_tren = normalize_text(row.get('arah_tren'))
         catatan = normalize_text(row.get('catatan'))
+        insight_text = normalize_text(row.get('insight_text'))
         detail_payload = json.dumps(
             extract_detail_payload(row, SUMMARY_COLUMNS),
             ensure_ascii=False,
@@ -218,6 +220,7 @@ def load_projection_series(connection: sqlite3.Connection, indicator_id: int, ro
                     'r_squared': r_squared,
                     'arah_tren': arah_tren,
                     'catatan': catatan,
+                    'insight_text': insight_text,
                     'detail_json': detail_payload,
                 }
             )
@@ -251,15 +254,16 @@ def load_projection_series(connection: sqlite3.Connection, indicator_id: int, ro
         r_squared=('r_squared', 'mean'),
         arah_tren=('arah_tren', 'first'),
         catatan=('catatan', 'first'),
+        insight_text=('insight_text', 'first'),
     )
 
     connection.executemany(
         '''
         INSERT OR REPLACE INTO proyeksi (
             indikator_id, wilayah, tahun, nilai, tahun_terakhir,
-            nilai_terakhir, slope_per_tahun, r_squared, arah_tren, catatan
+            nilai_terakhir, slope_per_tahun, r_squared, arah_tren, catatan, insight_text
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''',
         [
             (
@@ -273,6 +277,7 @@ def load_projection_series(connection: sqlite3.Connection, indicator_id: int, ro
                 float(row.r_squared) if pd.notna(row.r_squared) else None,
                 row.arah_tren,
                 row.catatan,
+                row.insight_text,
             )
             for row in grouped.itertuples(index=False)
         ],
@@ -287,7 +292,17 @@ def rebuild_database() -> dict[str, int]:
         raise FileNotFoundError(f'Folder data historis tidak ditemukan: {HISTORICAL_DIR}')
 
     if DB_PATH.exists():
-        DB_PATH.unlink()
+        try:
+            DB_PATH.unlink()
+        except PermissionError:
+            with get_connection() as connection:
+                connection.executescript('''
+                    DROP TABLE IF EXISTS historis_detail;
+                    DROP TABLE IF EXISTS proyeksi_detail;
+                    DROP TABLE IF EXISTS historis;
+                    DROP TABLE IF EXISTS proyeksi;
+                    DROP TABLE IF EXISTS indikator;
+                ''')
 
     projection_df = read_csv_fallback(PROJECTION_CSV)
     projection_df = projection_df.fillna('')

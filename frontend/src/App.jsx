@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 
 const features = [
   {
@@ -166,14 +166,22 @@ function TrendPointChart({ historical, projection, unit }) {
             )
           })}
 
-          {years.map((year) => {
+          {years.map((year, index) => {
             const x = 54 + ((year - years[0]) / Math.max(years[years.length - 1] - years[0], 1)) * (800 - 108)
+            const step = Math.ceil(years.length / 12)
+            const showLabel = years.length <= 12 || index % step === 0 || index === years.length - 1
+            
+            // Hindari tumpang tindih antara label terakhir dan label sebelumnya
+            const isOverlappingLast = index === years.length - 1 ? false : (years.length - 1 - index) < step * 0.7 && (index % step === 0)
+
             return (
               <g key={year}>
                 <line x1={x} x2={x} y1="42" y2="318" stroke="#f1f5f9" />
-                <text x={x} y="342" textAnchor="middle" className="fill-slate-500" fontSize="12">
-                  {year}
-                </text>
+                {showLabel && !isOverlappingLast && (
+                  <text x={x} y="342" textAnchor="middle" className="fill-slate-500" fontSize="12">
+                    {year}
+                  </text>
+                )}
               </g>
             )
           })}
@@ -254,6 +262,77 @@ function HistoricalDetailTable({ rows }) {
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
+
+function SearchableSelect({ options, value, onChange, disabled, placeholder }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const wrapperRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const filteredOptions = options.filter((opt) =>
+    opt.label.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const selectedOption = options.find((opt) => opt.value === value)
+
+  return (
+    <div ref={wrapperRef} className="relative w-full">
+      <div
+        className={`w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition flex justify-between items-center cursor-pointer ${disabled ? 'opacity-50 cursor-not-allowed' : 'focus-within:border-red-300 focus-within:ring-4 focus-within:ring-red-50'}`}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+      >
+        <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
+        <svg className="h-4 w-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-10 w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-lg max-h-72 flex flex-col">
+          <div className="sticky top-0 bg-white p-2 border-b border-slate-100 rounded-t-2xl z-20">
+            <input
+              type="text"
+              className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-red-300 focus:ring-2 focus:ring-red-50"
+              placeholder="Cari..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+            />
+          </div>
+          <div className="p-1 overflow-y-auto">
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((opt) => (
+                <div
+                  key={opt.value}
+                  className={`px-3 py-2 text-sm rounded-xl cursor-pointer hover:bg-red-50 hover:text-red-700 ${value === opt.value ? 'bg-red-50 text-red-700 font-medium' : 'text-slate-700'}`}
+                  onClick={() => {
+                    onChange(opt.value)
+                    setIsOpen(false)
+                    setSearch('')
+                  }}
+                >
+                  {opt.label}
+                </div>
+              ))
+            ) : (
+              <div className="px-3 py-4 text-sm text-center text-slate-500">Tidak ditemukan</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -406,15 +485,15 @@ function TrendPredictionDashboard() {
               Trend Prediction
             </span>
             <h2 className="text-3xl font-bold leading-tight text-slate-900 md:text-4xl">
-              Prediksi tren terhubung ke API backend
+              Eksplorasi Prediksi Tren Data
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-slate-600 md:text-base">
-              Pilih indikator dan wilayah untuk melihat historis solid, proyeksi dashed, dan ringkasan keandalan model dari SQLite/FastAPI.
+              Pilih indikator dan wilayah untuk melihat pergerakan data historis beserta proyeksi tren masa depan dengan mudah.
             </p>
           </div>
           <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-600">
             <p className="font-semibold text-slate-900">Data source</p>
-            <p>{indicatorMeta?.file_sumber || 'Menunggu indikator'}</p>
+            <p className="break-all">{indicatorMeta?.file_sumber || 'Menunggu indikator'}</p>
             <p className="mt-1 text-xs text-slate-500">
               Historis: {selectedRegionDetail?.historical_count ?? 0} | Proyeksi: {selectedRegionDetail?.projection_count ?? 0}
             </p>
@@ -424,36 +503,24 @@ function TrendPredictionDashboard() {
         <div className="mt-8 grid gap-4 lg:grid-cols-2">
           <label className="space-y-2">
             <span className="text-sm font-semibold text-slate-700">Indikator</span>
-            <select
+            <SearchableSelect
+              options={indicators.map((item) => ({ value: item.indikator, label: item.indikator.replace(/_/g, ' ') }))}
               value={indicator}
-              onChange={(event) => setIndicator(event.target.value)}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-red-300 focus:ring-4 focus:ring-red-50"
+              onChange={setIndicator}
               disabled={loadingIndicators}
-            >
-              <option value="">Pilih indikator</option>
-              {indicators.map((item) => (
-                <option key={item.indikator} value={item.indikator}>
-                  {item.indikator}
-                </option>
-              ))}
-            </select>
+              placeholder="Pilih indikator"
+            />
           </label>
 
           <label className="space-y-2">
             <span className="text-sm font-semibold text-slate-700">Wilayah / Breakdown</span>
-            <select
+            <SearchableSelect
+              options={regions.map((item) => ({ value: item, label: item }))}
               value={region}
-              onChange={(event) => setRegion(event.target.value)}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-red-300 focus:ring-4 focus:ring-red-50"
+              onChange={setRegion}
               disabled={!regions.length}
-            >
-              <option value="">Pilih wilayah</option>
-              {regions.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
+              placeholder="Pilih wilayah"
+            />
           </label>
         </div>
 
@@ -462,16 +529,16 @@ function TrendPredictionDashboard() {
             {error}
           </div>
         ) : null}
-
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          Jika sebuah wilayah hanya punya historis atau hanya proyeksi, itu karena seri data di database memang tidak lengkap untuk dua sisi sekaligus pada pilihan itu.
-        </div>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wider text-slate-400">R^2</p>
-          <p className="mt-2 text-3xl font-bold text-slate-900">{summary?.r_squared ?? '-'}</p>
+          <p className="mt-2 text-3xl font-bold text-slate-900 truncate" title={summary?.r_squared}>
+            {summary?.r_squared != null && !isNaN(Number(summary.r_squared)) 
+              ? Number(summary.r_squared).toFixed(4) 
+              : (summary?.r_squared ?? '-')}
+          </p>
           <p className="mt-1 text-sm text-slate-500">Keandalan tren</p>
         </div>
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -504,7 +571,11 @@ function TrendPredictionDashboard() {
               </div>
               <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3">
                 <span>Slope per tahun</span>
-                <span className="font-semibold text-slate-900">{summary?.slope_per_tahun ?? '-'}</span>
+                <span className="font-semibold text-slate-900 truncate" title={summary?.slope_per_tahun}>
+                  {summary?.slope_per_tahun != null && !isNaN(Number(summary.slope_per_tahun))
+                    ? Number(summary.slope_per_tahun).toFixed(4)
+                    : (summary?.slope_per_tahun ?? '-')}
+                </span>
               </div>
               <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3">
                 <span>Historis</span>
@@ -523,6 +594,18 @@ function TrendPredictionDashboard() {
               {summary?.catatan || 'Model baseline memakai regresi linear sederhana dari data yang tersedia.'}
             </p>
           </div>
+
+          {summary?.insight_text && (
+            <div className="rounded-[28px] border border-dashed border-emerald-200 bg-emerald-50/60 p-6">
+              <div className="mb-2 flex items-center gap-2">
+                 <svg className="h-5 w-5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                 <p className="text-sm font-semibold text-emerald-800">AI Insight</p>
+              </div>
+              <p className="text-sm leading-relaxed text-emerald-900/80">
+                {summary.insight_text}
+              </p>
+            </div>
+          )}
         </div>
       </section>
 

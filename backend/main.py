@@ -173,7 +173,7 @@ def get_data(
 
         projection_rows = connection.execute(
             '''
-            SELECT tahun, nilai, tahun_terakhir, nilai_terakhir, slope_per_tahun, r_squared, arah_tren, catatan
+            SELECT tahun, nilai, tahun_terakhir, nilai_terakhir, slope_per_tahun, r_squared, arah_tren, catatan, insight_text
             FROM proyeksi
             WHERE indikator_id = ? AND wilayah = ?
             ORDER BY tahun
@@ -194,6 +194,7 @@ def get_data(
             'r_squared': first_row['r_squared'],
             'arah_tren': first_row['arah_tren'],
             'catatan': first_row['catatan'],
+            'insight_text': first_row['insight_text'],
         }
 
     return {
