@@ -99,6 +99,24 @@ def extract_year(question):
     return None
 
 
+def extract_month(question):
+    """Extract an Indonesian month name from a user question."""
+    months = (
+        "januari", "februari", "maret", "april", "mei", "juni",
+        "juli", "agustus", "september", "oktober", "november", "desember",
+    )
+    words = set(re.findall(r"\w+", question.lower()))
+    for month in months:
+        if month in words:
+            return month
+    return None
+
+
+def extract_trend(question):
+
+    return bool(re.search(r"\b(tren|trend)\b", question.lower()))
+
+
 # =====================================
 # Ambil Keyword
 # =====================================
@@ -106,6 +124,8 @@ def extract_year(question):
 SYNONYM_MAP = {
     "disabilitas": "cacat",
     "penyandang": "cacat",
+    "kemiskinan": "miskin",
+    "miskin": "miskin",
 }
 
 
@@ -136,6 +156,10 @@ def parse_question(question):
 
         "year": extract_year(question),
 
+        "month": extract_month(question),
+
+        "trend": extract_trend(question),
+
         "keywords": extract_keywords(question)
 
     }
@@ -150,7 +174,13 @@ def answer_question(question):
     """
     parsed = parse_question(question)
     # First try domain-specific fast facts
-    ans, src = data_facts.answer(question, parsed.get("region"), parsed.get("year"))
+    ans, src = data_facts.answer(
+        question,
+        parsed.get("region"),
+        parsed.get("year"),
+        parsed.get("month"),
+        parsed.get("trend", False),
+    )
     if ans:
         return ans, src
 

@@ -72,3 +72,41 @@ def generate_answer(question, results):
         # kembalikan None agar chatbot fallback ke jawaban default.
         print("LLM generate_answer error:", repr(exc))
         return None
+
+
+def generate_factual_intro(question):
+    """Generate a short natural-language introduction for a verified fact.
+
+    The numeric value, period, and source are rendered by application code,
+    not by the model.  This keeps the response conversational without giving
+    the model an opportunity to change the retrieved fact.
+    """
+    try:
+        llm = create_chat_model()
+        system_message = SystemMessage(content=(
+            "Kamu adalah asisten data statistik Aceh. Buat penjelasan singkat "
+            "dalam Bahasa Indonesia untuk jawaban data yang sudah diverifikasi. "
+            "Gunakan tepat dua kalimat: kalimat pertama mengaitkan hasil dengan "
+            "pertanyaan pengguna, dan kalimat kedua menjelaskan secara sederhana "
+            "kegunaan atau makna indikatornya. Bersikap ramah dan profesional. Jangan "
+            "menulis angka, tahun, tanggal, nilai, satuan, tautan, atau sumber; "
+            "semua fakta tersebut akan ditampilkan oleh sistem. Jangan membuat "
+            "klaim tambahan yang tidak ada pada pertanyaan."
+        ))
+        user_message = HumanMessage(content=f"Pertanyaan pengguna: {question}")
+        response = llm.generate([[system_message, user_message]])
+        generations = getattr(response, "generations", None)
+        if not generations:
+            return None
+        intro = getattr(generations[0][0], "text", None)
+        if not intro:
+            return None
+        intro = intro.strip()
+        # Do not display model output that may accidentally restate or alter a
+        # verified number; the application renders factual values itself.
+        if re.search(r"\d|https?://", intro, re.IGNORECASE):
+            return None
+        return intro
+    except Exception as exc:
+        print("LLM generate_factual_intro error:", repr(exc))
+        return None

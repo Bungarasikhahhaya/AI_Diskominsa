@@ -40,28 +40,28 @@ export default function ChatbotPage() {
       }))
   }, [messages])
 
-  const renderMessageText = (text) => {
-    const urlRegex = /(https?:\/\/[\w\-\.\?\,\'\/\+&%\$#_=~:;@!*]+)(?![^<]*>)/g
-    const parts = text.split(urlRegex)
-
-    return parts.map((part, index) => {
-      if (urlRegex.test(part)) {
+  const renderInlineText = (text) => {
+    const tokenRegex = /(https?:\/\/[^\s]+|\*\*[^*]+\*\*)/g
+    return text.split(tokenRegex).filter(Boolean).map((part, index) => {
+      if (part.startsWith('http://') || part.startsWith('https://')) {
         return (
-          <a
-            key={index}
-            href={part}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-red-700 hover:underline break-words"
-          >
-            {part}
+          <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="text-red-700 hover:underline break-words">
+            Buka sumber Satu Data Aceh
           </a>
         )
       }
-
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={index} className="font-semibold text-slate-900">{part.slice(2, -2)}</strong>
+      }
       return <span key={index}>{part}</span>
     })
   }
+
+  const renderMessageText = (text) => text.split('\n').map((line, index) => (
+    <div key={index} className={line ? 'min-h-[1.25rem]' : 'h-3'}>
+      {renderInlineText(line)}
+    </div>
+  ))
 
   const appendMessage = (message) => {
     setMessages((prev) => [...prev, message])
@@ -104,7 +104,7 @@ export default function ChatbotPage() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
-      <div className="grid lg:grid-cols-[280px_minmax(0,1fr)] gap-6 p-6">
+      <div className="grid lg:grid-cols-[280px_minmax(0,1fr)] gap-6 p-6 items-start">
         <aside className="hidden lg:flex flex-col rounded-[32px] bg-white border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-6 pt-6 pb-4">
             <div className="inline-flex items-center gap-3 px-3 py-2 rounded-full bg-red-50 text-red-700 font-semibold text-sm">
@@ -128,7 +128,7 @@ export default function ChatbotPage() {
             </div>
           </div>
 
-          <div className="border-t border-slate-200 px-6 py-6 mt-auto">
+          <div className="border-t border-slate-200 px-6 py-6">
             <h3 className="text-xs uppercase tracking-[0.24em] text-slate-500 mb-4">Riwayat Analisis</h3>
             <div className="space-y-3">
               {historyItems.map((item) => (
@@ -171,7 +171,7 @@ export default function ChatbotPage() {
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm text-slate-700">
                   <span className="material-symbols-outlined">shield</span>
-                  Terverifikasi BPS
+                  Terverifikasi Satu Data Aceh
                 </div>
               </div>
 
@@ -181,7 +181,7 @@ export default function ChatbotPage() {
                     key={`${message.sender}-${index}`}
                     className={`rounded-[28px] p-5 shadow-sm ${message.sender === 'assistant' ? 'bg-slate-50 text-slate-900' : 'bg-red-700 text-white self-end'}`}
                   >
-                    <p className="text-sm leading-relaxed">{renderMessageText(message.text)}</p>
+                    <div className="text-sm leading-relaxed">{renderMessageText(message.text)}</div>
                   </div>
                 ))}
                 {loading && (
@@ -235,7 +235,7 @@ export default function ChatbotPage() {
                 </button>
               </div>
               {error && <p className="mt-3 text-center text-sm text-red-600">{error}</p>}
-              <p className="mt-3 text-center text-xs uppercase tracking-[0.24em] text-slate-500">SADA-AI mungkin membuat kesalahan. Verifikasi hasil melalui Dashboard Resmi BPS.</p>
+              <p className="mt-3 text-center text-xs uppercase tracking-[0.24em] text-slate-500">SADA-AI mungkin membuat kesalahan. Verifikasi hasil melalui Dashboard Resmi Satu Data Aceh.</p>
             </div>
           </section>
         </main>

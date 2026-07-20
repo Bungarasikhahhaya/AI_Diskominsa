@@ -16,6 +16,7 @@ METRIC_PRIORITY = [
     "inflasi",
     "pengeluaran",
     "perkapita",
+    "miskin",
     "penduduk",
     "populasi",
 ]
@@ -23,6 +24,8 @@ METRIC_PRIORITY = [
 METRIC_SYNONYMS = {
     "disabilitas": "cacat",
     "penyandang": "cacat",
+    "kemiskinan": "miskin",
+    "miskin": "miskin",
 }
 
 METRIC_COLUMN_PATTERNS = {
@@ -33,6 +36,7 @@ METRIC_COLUMN_PATTERNS = {
     "inflasi": ["inflasi"],
     "pengeluaran": ["pengeluaran", "belanja", "biaya"],
     "perkapita": ["perkapita", "per_kapita"],
+    "miskin": ["jumlah_penduduk_miskin", "penduduk_miskin", "jumlah_penduduk_miskin_ekstrem", "persentase_penduduk_miskin", "miskin", "kemiskinan"],
     "penduduk": ["jumlah_penduduk", "penduduk", "populasi"],
     "populasi": ["populasi", "jumlah_populasi"],
 }
@@ -55,6 +59,14 @@ REGION_COLUMN_PATTERNS = [
 ]
 
 YEAR_COLUMN_PATTERNS = ["tahun", "year", "periode", "bulan", "month"]
+MONTH_COLUMN_PATTERNS = ["bulan", "month"]
+
+MONTH_ALIASES = {
+    "januari": "januari", "februari": "februari", "maret": "maret",
+    "april": "april", "mei": "mei", "juni": "juni", "juli": "juli",
+    "agustus": "agustus", "september": "september", "oktober": "oktober",
+    "november": "november", "desember": "desember",
+}
 
 COMMON_QUESTION_TOKENS = {
     "berapa",
@@ -368,6 +380,14 @@ def _find_best_metric_column(cols, metric_token=None):
             for idx, cl in enumerate(cols_l):
                 if pattern in cl:
                     candidates.append((100 + len(pattern), cols[idx]))
+        # Once a metric is recognized, only a column explicitly associated
+        # with that metric is valid.  A generic numeric-looking column from a
+        # different dataset (for example, `proporsi_penduduk...` for an
+        # inflation question) must never be selected.
+        if not candidates:
+            return None
+        candidates.sort(reverse=True)
+        return candidates[0][1]
     elif metric_token is not None:
         # If we recognized a metric token but there's no strong matching column,
         # avoid returning a generic column for unrelated user queries.
@@ -421,6 +441,47 @@ def _matches_category_value(value):
     return bool(re.search(r"\bsd\b|sekolah|sekolah dasar|dasar", text))
 
 
+def _extract_named_category(question):
+    """Extract a category requested as 'kelompok X', 'kategori X', etc."""
+    match = re.search(
+        r"\b(kelompok|kategori|subsektor|jenis)\s+(.+?)(?:[?!.]|$)",
+        str(question).lower(),
+    )
+    if not match:
+        return None, None
+    label = _normalize_text(match.group(2))
+    return match.group(1), label or None
+
+
+def _find_named_category_column(cols, category_kind):
+    if category_kind is None:
+        return None
+    alternatives = {
+        "kelompok": ["kelompok", "kategori"],
+        "kategori": ["kategori", "kelompok"],
+        "subsektor": ["subsektor"],
+        "jenis": ["jenis"],
+    }
+    patterns = alternatives.get(category_kind, [category_kind])
+
+    # Prefer an exact label column (e.g. `kelompok`) over an identifier such
+    # as `kode_kelompok`; the user's phrase is a label, not a numeric code.
+    for pattern in patterns:
+        for col in cols:
+            if str(col).lower().strip() == pattern:
+                return col
+
+    return _find_column(cols, patterns)
+
+
+def _filter_by_named_category(df, category_col, category_value):
+    if category_col is None or category_value is None:
+        return df
+    return df[df[category_col].apply(
+        lambda value: _normalize_text(value) == category_value
+    )]
+
+
 def _question_extreme_preference(question):
     text = _normalize_text(question)
     for keyword in MAX_PREFERENCE_KEYWORDS:
@@ -448,13 +509,122 @@ def _row_matches_region(row, region_col, region):
         return False
 
 
+def _extract_year_ints(value):
+    """Return list of 4-digit year ints (1900-2099) found in the value."""
+    try:
+        s = str(value)
+        years = re.findall(r"\b(?:19|20)\d{2}\b", s)
+        return [int(y) for y in years]
+    except Exception:
+        return []
+
+
+def _matches_year_value(value, year):
+    """Flexible matching of a dataset year cell against the requested year.
+
+    Handles exact string matches, numeric appearances inside ranges (e.g. "2018-2019"),
+    comma/semicolon separated lists, and simple token matches.
+    """
+    if value is None:
+        return False
+    try:
+        y = str(year).strip()
+        if y == "":
+            return False
+        s = str(value)
+        # Exact normalized match
+        if s.strip().lower() == y.lower():
+            return True
+        # If the cell contains numeric year tokens, check those
+        ints = _extract_year_ints(s)
+        try:
+            yi = int(y)
+        except Exception:
+            yi = None
+        if yi is not None and ints:
+            if yi in ints:
+                return True
+        # token boundary match (handles e.g. '2018/2019' if y is '2018')
+        if re.search(r"\b" + re.escape(y) + r"\b", s):
+            return True
+        # split common separators and compare tokens
+        parts = re.split(r"[;,/|\\s]+", s)
+        if any(p.strip().lower() == y.lower() for p in parts):
+            return True
+        return False
+    except Exception:
+        return False
+
+
 def _row_matches_year(row, year_col, year):
     if year_col is None or year is None:
         return True
     try:
-        return str(row.get(year_col)).strip() == str(year)
+        return _matches_year_value(row.get(year_col), year)
     except Exception:
         return False
+
+
+def _matches_month_value(value, month):
+    if value is None or month is None:
+        return False
+    actual = _normalize_text(value)
+    requested = MONTH_ALIASES.get(_normalize_text(month), _normalize_text(month))
+    return actual == requested
+
+
+def _filter_by_period(df, year_col, year, month_col, month):
+    """Filter a dataframe by every requested time component."""
+    result = df
+    if year_col and year:
+        result = result[result[year_col].apply(lambda v: _matches_year_value(v, year))]
+    if month_col and month:
+        result = result[result[month_col].apply(lambda v: _matches_month_value(v, month))]
+    return result
+
+
+def _select_best_row(df, year_col, metric_col, question=None, year=None):
+    if df is None or df.empty or metric_col not in df.columns:
+        return None
+
+    if year_col and year is not None:
+        try:
+            matched = df.loc[df[year_col].astype(str).apply(lambda v: _matches_year_value(v, year))]
+            if not matched.empty:
+                return matched.iloc[0]
+        except Exception:
+            try:
+                matched = df.loc[df[year_col].astype(str).str.strip() == str(year).strip()]
+                if not matched.empty:
+                    return matched.iloc[0]
+            except Exception:
+                pass
+
+    preference = _question_extreme_preference(question or "")
+    if preference:
+        try:
+            numeric_values = pd.to_numeric(df[metric_col], errors="coerce").dropna()
+            if not numeric_values.empty:
+                if preference == "max":
+                    return df.loc[numeric_values.idxmax()]
+                return df.loc[numeric_values.idxmin()]
+        except Exception:
+            pass
+
+    if year_col in df.columns:
+        try:
+            df_year = df.copy()
+            df_year["__year_max"] = df_year[year_col].astype(str).apply(lambda v: max(_extract_year_ints(v)) if _extract_year_ints(v) else None)
+            df_year = df_year.dropna(subset=["__year_max"])
+            if not df_year.empty:
+                return df_year.loc[df_year["__year_max"].idxmax()]
+        except Exception:
+            pass
+
+    try:
+        return df.iloc[0]
+    except Exception:
+        return None
 
 
 def _human_label(label):
@@ -464,17 +634,31 @@ def _human_label(label):
     return " ".join([word.capitalize() for word in label.split()])
 
 
+def _is_missing_value(value):
+    if value is None:
+        return True
+    text = str(value).strip().lower()
+    return text == "" or text == "nan" or text == "none"
+
+
 def _format_answer(label, region_name, year_val, val):
     parts = [label]
-    if region_name:
+    if not _is_missing_value(region_name):
         parts.append(str(region_name))
-    if year_val and str(year_val).lower() != "nan":
+    if not _is_missing_value(year_val):
         parts.append(str(year_val))
     parts.append(str(val))
     return " ".join(parts)
 
 
-def answer(question, region=None, year=None):
+def _format_trend_answer(label, region_name, year_val, val):
+    label_text = label.lower()
+    region_text = f" di {region_name}" if not _is_missing_value(region_name) else ""
+    year_text = f" pada tahun {year_val}" if not _is_missing_value(year_val) else ""
+    return f"Tren {label_text}{year_text}{region_text} adalah {val}."
+
+
+def answer(question, region=None, year=None, month=None, trend=False):
     q_tokens = _tokens(question)
     metric_token = _find_metric_token(q_tokens)
     if metric_token is None:
@@ -485,6 +669,7 @@ def answer(question, region=None, year=None):
 
     raw_tokens = set(re.findall(r"\w+", question.lower()))
     query_has_persentase = any(tok.startswith("persent") for tok in raw_tokens)
+    category_kind, category_value = _extract_named_category(question)
 
     for path in candidates:
         df_sample = _read_sample(path, n=500)
@@ -493,8 +678,20 @@ def answer(question, region=None, year=None):
         cols = list(df_sample.columns)
         region_col = _find_column(cols, REGION_COLUMN_PATTERNS)
         year_col = _find_column(cols, YEAR_COLUMN_PATTERNS)
+        month_col = _find_column(cols, MONTH_COLUMN_PATTERNS)
+        category_col = _find_named_category_column(cols, category_kind)
         metric_col = _find_best_metric_column(cols, metric_token)
-        if metric_col is None:
+
+        # A category named by the user is a mandatory constraint.  A dataset
+        # without a compatible category column cannot answer that question,
+        # even if it contains a similarly named metric such as inflation.
+        if category_value is not None and category_col is None:
+            continue
+
+        # A recognized metric (for example, "inflasi") must be backed by a
+        # matching column.  Do not fall back to generic numeric fields such as
+        # `id`, `jumlah`, or `nilai` from an unrelated dataset.
+        if metric_col is None and metric_token is None:
             metric_col = _find_column(cols, ["jumlah", "nilai", "total", "count"])
 
         if metric_col is None:
@@ -513,9 +710,17 @@ def answer(question, region=None, year=None):
                 except Exception:
                     pass
 
-        sel = df_sample
+        # The sample is used only to inspect the schema.  Apply the user's
+        # filters to the complete CSV so matches after the first 500 rows are
+        # not silently missed.
+        try:
+            sel = pd.read_csv(path, low_memory=False)
+        except Exception:
+            continue
         if region_col and region:
             sel = sel[sel[region_col].astype(str).str.lower().str.contains(str(region).lower(), na=False)]
+
+        sel = _filter_by_named_category(sel, category_col, category_value)
 
         age_filter_col = _find_query_category_filter(question, cols)
         if age_filter_col is not None:
@@ -524,33 +729,11 @@ def answer(question, region=None, year=None):
                 continue
             sel = sel[age_mask]
 
-        region_sel = sel.copy()
-        if year_col and year:
-            sel = sel[sel[year_col].astype(str).str.lower() == str(year).lower()]
+        sel = _filter_by_period(sel, year_col, year, month_col, month)
 
         if sel.empty:
-            if year_col and year and region_col and region and not region_sel.empty:
-                try:
-                    region_sel[year_col] = pd.to_numeric(region_sel[year_col], errors="coerce")
-                    region_sel = region_sel.dropna(subset=[year_col])
-                    if not region_sel.empty:
-                        latest_idx = region_sel[year_col].idxmax()
-                        chosen_row = region_sel.loc[latest_idx]
-                        val = chosen_row.get(metric_col)
-                        region_name = chosen_row.get(region_col)
-                        actual_year = chosen_row.get(year_col)
-                        answer_text = (
-                            f"Data untuk tahun {year} di {region_name} tidak tersedia. "
-                            f"Data terakhir yang tersedia adalah tahun {actual_year}: "
-                            f"{_format_answer(_human_label(metric_col), region_name, actual_year, val)}"
-                        )
-                        dataset_url = _get_dataset_url_for_csv_path(path)
-                        if dataset_url:
-                            return answer_text, dataset_url
-                        relative_path = os.path.relpath(path, ROOT)
-                        return answer_text, relative_path
-                except Exception:
-                    pass
+            # Never substitute a different period for a period explicitly
+            # requested by the user.  That produces plausible but false facts.
             continue
 
         try:
@@ -564,13 +747,37 @@ def answer(question, region=None, year=None):
         if len(vals) == 0:
             continue
 
+        # Prefer verifying the requested region/year against the full CSV to avoid
+        # returning a candidate dataset that does not actually contain the row.
         chosen_row = None
-        if year_col and year_col in sel.columns and year:
-            chosen_row = sel.loc[sel[sel[year_col].astype(str).str.strip() == str(year).strip()].index]
-            if not chosen_row.empty:
-                chosen_row = chosen_row.iloc[0]
-            else:
+        if os.path.exists(path) and (region or year):
+            try:
+                df_full = pd.read_csv(path, low_memory=False)
+                if region_col and region:
+                    df_full = df_full[df_full[region_col].astype(str).str.lower().str.contains(str(region).lower(), na=False)]
+                df_full = _filter_by_named_category(df_full, category_col, category_value)
+                df_full = _filter_by_period(df_full, year_col, year, month_col, month)
+                if df_full.empty:
+                    continue
+                chosen_row = _select_best_row(df_full, year_col, metric_col, question=question, year=year)
+            except Exception:
                 chosen_row = None
+
+        if chosen_row is None:
+            if year_col and year_col in sel.columns and year:
+                try:
+                    chosen_row = sel.loc[sel[sel[year_col].astype(str).apply(lambda v: _matches_year_value(v, year))].index]
+                    if not chosen_row.empty:
+                        chosen_row = chosen_row.iloc[0]
+                    else:
+                        chosen_row = None
+                except Exception:
+                    chosen_row = sel.loc[sel[sel[year_col].astype(str).str.strip() == str(year).strip()].index]
+                    if not chosen_row.empty:
+                        chosen_row = chosen_row.iloc[0]
+                    else:
+                        chosen_row = None
+            # chosen_row already normalized inside try/except above
         if chosen_row is None:
             preference = _question_extreme_preference(question)
             if preference and metric_col in sel.columns:
@@ -587,20 +794,139 @@ def answer(question, region=None, year=None):
 
             if chosen_row is None:
                 try:
-                    sel_year = pd.to_numeric(sel[year_col], errors="coerce") if year_col else None
-                    if sel_year is not None and not sel_year.dropna().empty:
-                        latest_idx = sel_year.dropna().idxmax()
-                        chosen_row = sel.loc[latest_idx]
+                    if year_col:
+                        # compute best numeric hint per-row and pick latest
+                        sel = sel.copy()
+                        sel["__year_max"] = sel[year_col].astype(str).apply(lambda v: max(_extract_year_ints(v)) if _extract_year_ints(v) else None)
+                        if not sel["__year_max"].dropna().empty:
+                            latest_idx = sel["__year_max"].idxmax()
+                            chosen_row = sel.loc[latest_idx]
+                        else:
+                            chosen_row = sel.iloc[0]
                     else:
                         chosen_row = sel.iloc[0]
                 except Exception:
                     chosen_row = sel.iloc[0]
 
+        if chosen_row is None:
+            continue
+
         val = chosen_row.get(metric_col)
         region_name = chosen_row.get(region_col) if region_col else region
         year_val = chosen_row.get(year_col) if year_col else year
-        answer_text = _format_answer(_human_label(metric_col), region_name, year_val, val)
+        if trend and year_val:
+            label = _human_label(metric_col)
+            if metric_token and metric_token != label.lower():
+                label = label
+            answer_text = (
+                f"Tren {label.lower()} pada tahun {year_val} "
+                f"di {region_name or 'Aceh'} adalah {val}."
+            )
+        else:
+            answer_text = _format_answer(_human_label(metric_col), region_name, year_val, val)
         dataset_url = _get_dataset_url_for_csv_path(path)
+        # If a catalog URL exists for this dataset, prefer returning a local
+        # relative file path when the local CSV contains data for the
+        # requested year (and thus is more authoritative for year-specific
+        # queries). Otherwise return the catalog URL.
+        try:
+            if dataset_url and os.path.exists(path) and year is not None:
+                try:
+                    df_full = pd.read_csv(path, low_memory=False)
+                    cols_full = list(df_full.columns)
+                    year_col_full = _find_column(cols_full, YEAR_COLUMN_PATTERNS)
+                    metric_col_full = metric_col or _find_best_metric_column(cols_full, metric_token)
+                    region_col_full = region_col
+                    if year_col_full is not None:
+                        month_col_full = _find_column(cols_full, MONTH_COLUMN_PATTERNS)
+                        category_col_full = _find_named_category_column(cols_full, category_kind)
+                        df_y = _filter_by_period(df_full, year_col_full, year, month_col_full, month)
+                        df_y = _filter_by_named_category(df_y, category_col_full, category_value)
+                        if region_col_full is not None and region is not None:
+                            df_y = df_y[df_y[region_col_full].astype(str).str.lower().str.contains(str(region).lower(), na=False)]
+                        if not df_y.empty and metric_col_full is not None:
+                            df_y = df_y.copy()
+                            df_y['_mnum'] = pd.to_numeric(df_y[metric_col_full], errors='coerce')
+                            if not df_y['_mnum'].dropna().empty:
+                                chosen_row_local = _select_best_row(
+                                    df_y, year_col_full, metric_col_full,
+                                    question=question, year=year,
+                                )
+                                val_local = chosen_row_local.get(metric_col_full)
+                                region_name_local = chosen_row_local.get(region_col_full) if region_col_full else region
+                                year_val_local = chosen_row_local.get(year_col_full)
+                                if trend and year_val_local:
+                                    answer_text_local = _format_trend_answer(
+                                        _human_label(metric_col_full),
+                                        region_name_local,
+                                        year_val_local,
+                                        val_local,
+                                    )
+                                else:
+                                    answer_text_local = _format_answer(
+                                        _human_label(metric_col_full),
+                                        region_name_local,
+                                        year_val_local,
+                                        val_local,
+                                    )
+                                relative_path = os.path.relpath(path, ROOT)
+                                return answer_text_local, (dataset_url if dataset_url else relative_path)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # If no year requested but we have a local file and a requested region,
+        # prefer the local file's row for that region (choose latest year if multiple).
+        try:
+            if dataset_url and os.path.exists(path) and region is not None:
+                try:
+                    df_full = pd.read_csv(path, low_memory=False)
+                    cols_full = list(df_full.columns)
+                    region_col_full = _find_column(cols_full, REGION_COLUMN_PATTERNS)
+                    metric_col_full = metric_col or _find_best_metric_column(cols_full, metric_token)
+                    year_col_full = _find_column(cols_full, YEAR_COLUMN_PATTERNS)
+                    category_col_full = _find_named_category_column(cols_full, category_kind)
+                    if region_col_full is not None:
+                        selr = df_full[df_full[region_col_full].astype(str).str.lower().str.contains(str(region).lower(), na=False)]
+                        selr = _filter_by_named_category(selr, category_col_full, category_value)
+                        if not selr.empty and metric_col_full is not None:
+                            if year_col_full is not None:
+                                selr = selr.copy()
+                                selr["__year_max"] = selr[year_col_full].astype(str).apply(lambda v: max(_extract_year_ints(v)) if _extract_year_ints(v) else None)
+                                selr = selr.dropna(subset=["__year_max"])
+                                if not selr.empty:
+                                    latest_idx = selr["__year_max"].idxmax()
+                                    chosen_row_local = selr.loc[latest_idx]
+                                else:
+                                    chosen_row_local = selr.iloc[0]
+                            else:
+                                chosen_row_local = selr.iloc[0]
+
+                            val_local = chosen_row_local.get(metric_col_full)
+                            region_name_local = chosen_row_local.get(region_col_full)
+                            year_val_local = chosen_row_local.get(year_col_full) if year_col_full else None
+                            if trend and year_val_local:
+                                answer_text_local = _format_trend_answer(
+                                    _human_label(metric_col_full),
+                                    region_name_local,
+                                    year_val_local,
+                                    val_local,
+                                )
+                            else:
+                                answer_text_local = _format_answer(
+                                    _human_label(metric_col_full),
+                                    region_name_local,
+                                    year_val_local,
+                                    val_local,
+                                )
+                            relative_path = os.path.relpath(path, ROOT)
+                            return answer_text_local, (dataset_url if dataset_url else relative_path)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         if dataset_url:
             return answer_text, dataset_url
 
