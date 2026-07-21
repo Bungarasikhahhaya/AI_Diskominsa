@@ -53,7 +53,7 @@ export default function App() {
             <div className="relative grid lg:grid-cols-[1.25fr_.75fr] gap-10 items-center">
               <div className="max-w-3xl animate-enter">
               <span className="inline-flex px-4 py-2 bg-red-50 text-red-700 text-[11px] font-bold tracking-wider uppercase rounded-full mb-5 ring-1 ring-red-100">
-                Portal Resmi Statistika Indonesia
+                Platform Analitik Satu Data Aceh
               </span>
               <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-5 leading-[1.12] tracking-tight">
                 Selamat Datang di Portal SADA-AI
@@ -61,15 +61,17 @@ export default function App() {
               <p className="text-gray-600 text-sm md:text-base leading-relaxed mb-8">
                 Integrasi kecerdasan buatan untuk tata kelola data nasional yang lebih transparan, cepat, dan akurat. Akses insight statistik secara real-time melalui platform analisis tercanggih untuk mendukung pengambilan kebijakan publik.
               </p>
-              <button
+              <a
                 className="hero-cta bg-red-700 text-white px-6 py-4 rounded-full inline-flex items-center gap-3 text-base font-semibold"
-                onClick={() => setPage('chat')}
+                href="https://satudata.acehprov.go.id"
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M14 3h7v7M10 14L21 3M21 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h5" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" />
                 </svg>
-                Statistical Q&A
-              </button>
+                Kunjungi Portal Satu Data Aceh
+              </a>
               </div>
               <div className="relative hidden lg:block animate-enter-delayed" aria-hidden="true">
                 <div className="data-card p-6 rounded-[26px] bg-white/90 border border-white shadow-2xl shadow-red-950/10">
@@ -107,7 +109,7 @@ export default function App() {
               &larr; Kembali ke Beranda
             </button>
           </header>
-          <ChatbotPage />
+          <ChatbotPage onNavigate={openFeature} />
         </div>
       ) : (
         <div className="flex-grow">

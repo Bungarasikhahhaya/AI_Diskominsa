@@ -1,6 +1,6 @@
 from services.query_parser import answer_question, parse_question
 from services.search_engine import search
-from services.llm import generate_answer, generate_factual_intro
+from services.llm import generate_answer, generate_grounded_explanation
 import services.data_facts as data_facts
 
 
@@ -33,13 +33,25 @@ def ask(question):
     answer_text, source_path = answer_question(question)
 
     if answer_text:
-        intro = generate_factual_intro(question)
-        if not intro:
-            intro = "Saya menemukan data yang sesuai dengan pertanyaan Anda."
+        explanation = generate_grounded_explanation(question, answer_text)
+        if not explanation:
+            explanation = (
+                "Bagian detail di bawah menunjukkan baris data yang cocok dengan parameter "
+                "pada pertanyaan Anda. Setiap bidang—indikator, wilayah, periode, dan nilai—"
+                "hanya ditampilkan apabila tersedia pada hasil lookup dataset. Hasil ini "
+                "bukan perbandingan antarwilayah, analisis penyebab, maupun proyeksi."
+            )
 
-        response = f"{intro}\n\n**Hasil terverifikasi**\n{answer_text}"
+        response = (
+            "**Penjelasan berbasis dataset**\n"
+            f"{explanation}\n\n"
+            "**Jawaban dari dataset**\n"
+            f"{answer_text}\n\n"
+            "_Nilai di atas diambil langsung dari dataset yang tersedia; "
+            "SADA-AI tidak menambahkan atau mengubah fakta statistik._"
+        )
         if source_path:
-            response += f"\n\n**Sumber data**\n{source_path}"
+            response += f"\n\n**Sumber dataset**\n{source_path}"
         return response
 
     # A recognized statistical metric must only be answered by the factual

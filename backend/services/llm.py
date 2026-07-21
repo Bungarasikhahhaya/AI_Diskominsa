@@ -1,4 +1,5 @@
 import os
+import re
 
 from config import GOOGLE_API_KEY
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -74,39 +75,57 @@ def generate_answer(question, results):
         return None
 
 
-def generate_factual_intro(question):
-    """Generate a short natural-language introduction for a verified fact.
+def generate_grounded_explanation(question, verified_fact):
+    """Explain a verified lookup without allowing the LLM to add new facts.
 
-    The numeric value, period, and source are rendered by application code,
-    not by the model.  This keeps the response conversational without giving
-    the model an opportunity to change the retrieved fact.
+    ``verified_fact`` is the exact result returned by the CSV lookup. It is
+    the sole factual context supplied to the model. The output is discarded
+    when it contains a number not present in that result or an unsupported
+    interpretation; the application will then use its deterministic fallback.
     """
     try:
         llm = create_chat_model()
         system_message = SystemMessage(content=(
-            "Kamu adalah asisten data statistik Aceh. Buat penjelasan singkat "
-            "dalam Bahasa Indonesia untuk jawaban data yang sudah diverifikasi. "
-            "Gunakan tepat dua kalimat: kalimat pertama mengaitkan hasil dengan "
-            "pertanyaan pengguna, dan kalimat kedua menjelaskan secara sederhana "
-            "kegunaan atau makna indikatornya. Bersikap ramah dan profesional. Jangan "
-            "menulis angka, tahun, tanggal, nilai, satuan, tautan, atau sumber; "
-            "semua fakta tersebut akan ditampilkan oleh sistem. Jangan membuat "
-            "klaim tambahan yang tidak ada pada pertanyaan."
+            "Kamu adalah asisten penjelas data statistik Aceh. Jawab dalam Bahasa "
+            "Indonesia yang jelas, profesional, dan mudah dipahami. Gunakan HANYA "
+            "fakta pada bagian FAKTA TERVERIFIKASI. Buat 1 sampai 2 paragraf pendek "
+            "yang menjelaskan jawaban untuk pertanyaan pengguna. Jelaskan hubungan "
+            "antara indikator, wilayah, periode, dan nilai HANYA jika bidang tersebut "
+            "ada pada fakta. Akhiri dengan batasan singkat bahwa hasil adalah satu "
+            "lookup data dan bukan perbandingan, analisis penyebab, atau proyeksi. "
+            "Kamu boleh mengulang nilai hanya persis seperti pada fakta. Jangan menambah angka, periode, wilayah, "
+            "definisi, perbandingan, sebab-akibat, tren, atau kesimpulan baru. "
+            "Jangan menulis tautan atau menyebut sumber di luar fakta. Jika faktanya "
+            "hanya satu nilai, katakan secara eksplisit bahwa data tersebut adalah "
+            "hasil lookup yang tersedia, bukan proyeksi atau perbandingan."
         ))
-        user_message = HumanMessage(content=f"Pertanyaan pengguna: {question}")
+        user_message = HumanMessage(content=(
+            f"PERTANYAAN PENGGUNA:\n{question}\n\n"
+            f"FAKTA TERVERIFIKASI (satu-satunya sumber):\n{verified_fact}"
+        ))
         response = llm.generate([[system_message, user_message]])
         generations = getattr(response, "generations", None)
         if not generations:
             return None
-        intro = getattr(generations[0][0], "text", None)
-        if not intro:
+        explanation = getattr(generations[0][0], "text", None)
+        if not explanation:
             return None
-        intro = intro.strip()
-        # Do not display model output that may accidentally restate or alter a
-        # verified number; the application renders factual values itself.
-        if re.search(r"\d|https?://", intro, re.IGNORECASE):
+        explanation = explanation.strip()
+        if len(explanation) > 1400 or re.search(r"https?://|www\.", explanation, re.IGNORECASE):
             return None
-        return intro
+
+        # Any figures in the prose must already occur in the verified lookup.
+        fact_numbers = set(re.findall(r"\d+(?:[.,]\d+)*", verified_fact))
+        answer_numbers = set(re.findall(r"\d+(?:[.,]\d+)*", explanation))
+        if not answer_numbers.issubset(fact_numbers):
+            return None
+
+        # Interpretive claims are only permitted when the exact fact itself
+        # contains that wording (for example, an explicitly retrieved trend).
+        for term in ("meningkat", "menurun", "tertinggi", "terendah", "dibandingkan", "diperkirakan", "penyebab"):
+            if term in explanation.lower() and term not in verified_fact.lower():
+                return None
+        return explanation
     except Exception as exc:
-        print("LLM generate_factual_intro error:", repr(exc))
+        print("LLM generate_grounded_explanation error:", repr(exc))
         return None

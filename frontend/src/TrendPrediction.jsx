@@ -35,7 +35,7 @@ const trendOutputs = [
 const API_BASE = '/api'
 
 
-function TrendPointChart({ historical, projection, unit }) {
+export function TrendPointChart({ historical, projection, unit }) {
   const { points, viewBox, minY, maxY } = useMemo(() => {
     const combined = [...historical.map((item) => ({ ...item, group: 'historical' })), ...projection.map((item) => ({ ...item, group: 'projection' }))]
 

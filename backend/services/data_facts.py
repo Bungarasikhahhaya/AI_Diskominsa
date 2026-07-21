@@ -642,20 +642,24 @@ def _is_missing_value(value):
 
 
 def _format_answer(label, region_name, year_val, val):
-    parts = [label]
+    """Present the exact row selected from a CSV as explicit lookup fields."""
+    details = [f"- **Indikator:** {label}"]
     if not _is_missing_value(region_name):
-        parts.append(str(region_name))
+        details.append(f"- **Wilayah:** {region_name}")
     if not _is_missing_value(year_val):
-        parts.append(str(year_val))
-    parts.append(str(val))
-    return " ".join(parts)
+        details.append(f"- **Periode:** {year_val}")
+    details.append(f"- **Nilai tercatat:** {val}")
+    return "\n".join(details)
 
 
 def _format_trend_answer(label, region_name, year_val, val):
-    label_text = label.lower()
-    region_text = f" di {region_name}" if not _is_missing_value(region_name) else ""
-    year_text = f" pada tahun {year_val}" if not _is_missing_value(year_val) else ""
-    return f"Tren {label_text}{year_text}{region_text} adalah {val}."
+    details = [f"- **Indikator tren:** {label}"]
+    if not _is_missing_value(region_name):
+        details.append(f"- **Wilayah:** {region_name}")
+    if not _is_missing_value(year_val):
+        details.append(f"- **Periode:** {year_val}")
+    details.append(f"- **Nilai pada periode tersebut:** {val}")
+    return "\n".join(details)
 
 
 def answer(question, region=None, year=None, month=None, trend=False):
@@ -818,10 +822,7 @@ def answer(question, region=None, year=None, month=None, trend=False):
             label = _human_label(metric_col)
             if metric_token and metric_token != label.lower():
                 label = label
-            answer_text = (
-                f"Tren {label.lower()} pada tahun {year_val} "
-                f"di {region_name or 'Aceh'} adalah {val}."
-            )
+            answer_text = _format_trend_answer(label, region_name or 'Aceh', year_val, val)
         else:
             answer_text = _format_answer(_human_label(metric_col), region_name, year_val, val)
         dataset_url = _get_dataset_url_for_csv_path(path)
