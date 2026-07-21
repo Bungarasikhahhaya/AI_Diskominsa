@@ -4,6 +4,7 @@ backend/**/*.py[cod]
 backend/**/$py.class
 
 # Environment files
+.env
 backend/.env
 backend/.env.*
 

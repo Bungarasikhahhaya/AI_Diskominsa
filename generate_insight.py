@@ -67,9 +67,9 @@ ATURAN KETAT:
      cukup bervariasi sehingga angka ini sebaiknya dilihat sebagai perkiraan
      kasar, bukan kepastian")
    - Di antara itu: nada netral, sebutkan ada ketidakpastian secukupnya
-4. Kalau ada outlier yang dibuang (jumlah_outlier_dibuang > 0), boleh
-   disinggung sekilas kalau relevan (misal "beberapa data tidak konsisten
-   sehingga dikecualikan dari perhitungan").
+4. Kalau ada outlier yang terdeteksi (jumlah_outlier_terdeteksi > 0), boleh
+   disinggung sekilas kalau relevan (misal "beberapa data terdeteksi sebagai outlier
+   namun tetap disertakan dalam perhitungan").
 5. Jangan mengarang penyebab tren (jangan bilang "karena kebijakan X" atau
    semacamnya) kecuali benar-benar tersirat jelas dari nama indikatornya.
 6. Output HANYA teks insight-nya saja, tanpa embel-embel seperti "Berikut
@@ -90,7 +90,7 @@ def buat_prompt(row):
         f"Nilai terakhir: {row.get('nilai_terakhir', '-')}",
         f"Arah tren: {arah}",
         f"R-squared (keandalan tren, skala 0-1): {row.get('r_squared', '-')}",
-        f"Jumlah outlier yang dibuang dari perhitungan: {row.get('jumlah_outlier_dibuang', 0)}",
+        f"Jumlah outlier yang terdeteksi (tetap dihitung): {row.get('jumlah_outlier_terdeteksi', 0)}",
     ]
 
     if pd.notna(row.get("tahun_+1")) and pd.notna(row.get("proyeksi_+1")):

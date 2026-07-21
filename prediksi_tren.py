@@ -106,25 +106,19 @@ def fit_dan_proyeksi(tahun, nilai, tahun_ke_depan=TAHUN_KE_DEPAN):
     tahun_asli = np.array(tahun, dtype=float)
     nilai_asli = np.array(nilai, dtype=float)
 
-    # --- Deteksi & buang outlier, TAPI hanya kalau sisa datanya masih cukup ---
+    # --- Deteksi outlier (TAPI TIDAK DIBUANG DARI PERHITUNGAN) ---
     outlier_mask = deteksi_outlier(nilai_asli)
     jumlah_outlier = int(outlier_mask.sum())
 
-    if jumlah_outlier > 0 and (len(nilai_asli) - jumlah_outlier) >= MIN_TITIK_DATA:
-        tahun_fit = tahun_asli[~outlier_mask]
-        nilai_fit = nilai_asli[~outlier_mask]
-    else:
-        # Kalau buang outlier bikin data kurang dari minimum, tetap pakai semua
-        # data (lebih baik proyeksi kasar daripada gagal total)
-        tahun_fit = tahun_asli
-        nilai_fit = nilai_asli
-        jumlah_outlier = 0
+    # Semua data tetap dipakai untuk fitting sesuai instruksi
+    tahun_fit = tahun_asli
+    nilai_fit = nilai_asli
 
     n = len(tahun_fit)
     slope, intercept = np.polyfit(tahun_fit, nilai_fit, 1)
     prediksi_historis = slope * tahun_fit + intercept
 
-    # R^2 (dihitung dari data yang dipakai fitting, setelah outlier dibuang)
+    # R^2 (dihitung dari semua data)
     ss_res = np.sum((nilai_fit - prediksi_historis) ** 2)
     ss_tot = np.sum((nilai_fit - np.mean(nilai_fit)) ** 2)
     r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
@@ -173,7 +167,7 @@ def fit_dan_proyeksi(tahun, nilai, tahun_ke_depan=TAHUN_KE_DEPAN):
         "tahun_terakhir": tahun_terakhir,
         "nilai_terakhir": round(nilai_asli[-1], 3),
         "proyeksi": proyeksi,
-        "jumlah_outlier_dibuang": jumlah_outlier,
+        "jumlah_outlier_terdeteksi": jumlah_outlier,
         "jumlah_titik_dipakai": n,
     }
 
@@ -210,10 +204,10 @@ def proses_satu_file(path_csv):
             catatan_list.append("Tren historis fluktuatif (R^2 rendah) - proyeksi linear kurang bisa diandalkan")
         elif fit["r_squared"] < 0.6:
             catatan_list.append("Tren historis cukup fluktuatif - proyeksi linear sebagai estimasi kasar")
-        if fit["jumlah_outlier_dibuang"] > 0:
+        if fit.get("jumlah_outlier_terdeteksi", 0) > 0:
             catatan_list.append(
-                f"{fit['jumlah_outlier_dibuang']} titik terdeteksi sebagai outlier ekstrem dan "
-                f"dikeluarkan dari perhitungan tren (kemungkinan inkonsistensi satuan/input di sumber data)"
+                f"{fit['jumlah_outlier_terdeteksi']} titik terdeteksi sebagai outlier ekstrem, "
+                "namun tetap disertakan dalam perhitungan."
             )
         if fit["jumlah_titik_dipakai"] < 5:
             catatan_list.append("Titik data historis sedikit - interval kepercayaan lebar / proyeksi kurang presisi")
@@ -226,7 +220,7 @@ def proses_satu_file(path_csv):
             "satuan": satuan,
             "jumlah_titik_tahun": len(grup),
             "jumlah_titik_dipakai": fit["jumlah_titik_dipakai"],
-            "jumlah_outlier_dibuang": fit["jumlah_outlier_dibuang"],
+            "jumlah_outlier_terdeteksi": fit.get("jumlah_outlier_terdeteksi", 0),
             "tahun_terakhir": fit["tahun_terakhir"],
             "nilai_terakhir": fit["nilai_terakhir"],
             "slope_per_tahun": fit["slope_per_tahun"],
