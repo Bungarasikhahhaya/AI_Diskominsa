@@ -9,7 +9,7 @@ const suggestionPrompts = [
 
 const features = [
   { label: 'Statistical Q&A', icon: '◌', destination: 'Statistical Q&A' },
-  { label: 'Report Summarizer', icon: '▤' },
+  { label: 'AI Narasi Laporan', icon: '▤', destination: 'AI Narasi Laporan Otomatis' },
   { label: 'Trend Prediction', icon: '↗', destination: 'AI Prediksi Tren Data' },
   { label: 'Anomaly Analysis', icon: '✦' },
 ]
