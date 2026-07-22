@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import ChatbotPage from './Chatbot'
 import { TrendPredictionDashboard } from './TrendPrediction'
+import NarasiLaporanView from './NarasiLaporan'
 
 const features = [
   {
@@ -41,6 +42,7 @@ export default function App() {
   const openFeature = (title) => {
     if (title === 'Statistical Q&A') setPage('chat')
     if (title === 'AI Prediksi Tren Data') setPage('trend')
+    if (title === 'AI Narasi Laporan Otomatis') setPage('narasi')
   }
 
   return (
@@ -110,6 +112,17 @@ export default function App() {
             </button>
           </header>
           <ChatbotPage onNavigate={openFeature} />
+        </div>
+      ) : page === 'narasi' ? (
+        <div className="flex-grow">
+          <header className="p-4 mb-4 max-w-6xl mx-auto">
+            <button onClick={() => setPage('home')} className="text-slate-600 hover:text-slate-900 font-semibold text-sm">
+              &larr; Kembali ke Beranda
+            </button>
+          </header>
+          <main className="max-w-6xl mx-auto px-4 pb-12">
+            <NarasiLaporanView onBack={() => setPage('home')} />
+          </main>
         </div>
       ) : (
         <div className="flex-grow">
