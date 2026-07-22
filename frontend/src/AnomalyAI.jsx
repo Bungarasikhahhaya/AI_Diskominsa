@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Database, ShieldCheck, TriangleAlert, Activity } from "lucide-react";
+import {
+    Activity,
+    ArrowLeft,
+    Database,
+    Lightbulb,
+    ListChecks,
+    Search,
+    ShieldCheck,
+    TriangleAlert
+} from "lucide-react";
 import {
     ResponsiveContainer,
     BarChart,
@@ -28,6 +37,10 @@ function DatasetSelector({
 
     return (
         <div className="flex-1 relative">
+            <Search
+                size={17}
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-[#B42318]"
+            />
             <input
                 ref={inputRef}
                 type="text"
@@ -42,14 +55,14 @@ function DatasetSelector({
                 h-[44px]
                 rounded-xl
                 border
-                border-[#D0D5DD]
+                border-[#D9E1EA]
                 bg-white
-                px-4
-                text-sm
+                pl-11
+                pr-4
+                text-base
                 placeholder:text-[#98A2B3]
-                border : #667085
                 focus:ring-2
-                focus:ring-[#EAECF0]
+                focus:ring-[#FECACA]
                 outline-none
                 transition"
             />
@@ -66,8 +79,8 @@ function DatasetSelector({
                     mt-2
                     z-20
                     border
-                    border-gray-200
-                    rounded-xl
+                    border-[#D9E1EA]
+                    rounded-lg
                     bg-white
                     shadow-lg
                     max-h-72
@@ -86,12 +99,13 @@ function DatasetSelector({
                                         p-3
                                         cursor-pointer
                                         border-b
+                                        border-[#F1F3F6]
                                         last:border-b-0
-                                        hover:bg-gray-50
+                                        hover:bg-[#FFF7F7]
                                         transition
                                         ${
                                             selected === dataset.identifier
-                                                ? "bg-red-100"
+                                                ? "bg-[#FFF1F1]"
                                                 : ""
                                         }
                                     `}
@@ -99,7 +113,7 @@ function DatasetSelector({
                                     <div className="font-semibold text-[#101828]">
                                         {dataset.title}
                                     </div>
-                                    <div className="text-sm text-gray-500">
+                                    <div className="text-[15px] text-gray-500">
                                         {dataset.publisher || "-"}
                                     </div>
                                 </div>
@@ -144,7 +158,7 @@ function SummaryCard({
             bg-white
             rounded-xl
             border
-            border-gray-200
+            border-[#D9E1EA]
             p-4
             py-4"
         >
@@ -154,7 +168,7 @@ function SummaryCard({
                 flex
                 items-center
                 gap-2
-                text-[#667085]
+                text-[#5B6B82]
                 uppercase
                 tracking-wide"
             >
@@ -245,7 +259,7 @@ function DatasetInfo({ dataset }) {
             <div>
                 <p
                     className="
-                    text-sm
+                    text-[15px]
                     text-[#667085]"
                 >
                     Nama Dataset
@@ -273,7 +287,7 @@ function DatasetInfo({ dataset }) {
             >
 
                 <div>
-                    <p className="text-sm text-[#667085]">
+                    <p className="text-[15px] text-[#667085]">
                         Sumber Data
                     </p>
                     <p className="font-medium mt-1">
@@ -282,7 +296,7 @@ function DatasetInfo({ dataset }) {
                 </div>
 
                 <div>
-                    <p className="text-sm text-[#667085]">
+                    <p className="text-[15px] text-[#667085]">
                         Tahun Data
                     </p>
                     <p className="font-medium mt-1">
@@ -291,7 +305,7 @@ function DatasetInfo({ dataset }) {
                 </div>
 
                 <div>
-                    <p className="text-sm text-[#667085]">
+                    <p className="text-[15px] text-[#667085]">
                         Terakhir Update
                     </p>
                     <p className="font-medium mt-1">
@@ -309,31 +323,35 @@ function DatasetInfo({ dataset }) {
 function InsightCard({ insight }) {
     if (!insight) return null;
     return (
-        <div className="flex flex-col">
+        <div className="flex h-full flex-col">
             <h3
                 className="
+                flex
+                items-center
+                gap-2
                 text-lg
                 font-bold
                 text-[#101828]"
             >
+                <Lightbulb size={19} className="text-[#C56A36]" />
                 Ringkasan Analisis AI
             </h3>
 
             <p
                 className="
                 mt-3
-                text-sm
+                text-[15px]
                 leading-7
                 text-[#667085]"
             >
                 {insight.summary}
             </p>
 
-            <div className="border-t border-gray-100 my-6"/>
+            <div className="border-t border-[#E4E7EC] my-3"/>
 
             <h4
                 className="
-                text-xs
+                text-sm
                 font-semibold
                 uppercase
                 tracking-wider
@@ -365,7 +383,7 @@ function InsightCard({ insight }) {
 
                             <p
                                 className="
-                                text-sm
+                                text-[15px]
                                 leading-6
                                 text-[#475467]"
                             >
@@ -387,32 +405,36 @@ function RecommendationCard({
 }) {
     if (!recommendation) return null;
     return (
-        <div className="min-h-[96px]">
+        <div className="flex h-full flex-col">
             <h3
                 className="
+                flex
+                items-center
+                gap-2
                 text-lg
                 font-bold
                 text-[#101828]
                 "
             >
+                <ListChecks size={19} className="text-[#5F87A6]" />
                 Rekomendasi AI
             </h3>
 
             <p
                 className="
                 text-[#667085]
-                text-sm
+                text-[15px]
                 leading-7
                 mt-3"
             >
                 Prioritas tindakan yang disarankan AI berdasarkan pola anomali yang ditemukan.
             </p>
 
-            <div className="border-t border-gray-100 my-6"/>
+            <div className="border-t border-[#E4E7EC] my-3"/>
 
             <h4
                 className="
-                text-xs
+                text-sm
                 font-semibold
                 uppercase
                 tracking-wider
@@ -444,7 +466,7 @@ function RecommendationCard({
                             <p
                                 className="
                                     
-                                    text-sm
+                                    text-[15px]
                                     leading-6
                                     text-[#475467]"
                                 >
@@ -483,7 +505,7 @@ function HorizontalChart({
                 <p
                     className="
                     mt-2
-                    text-sm
+                    text-base
                     text-[#667085]"
                 >
                     Belum ada data yang dapat divisualisasikan.
@@ -542,8 +564,8 @@ function HorizontalChart({
 
     });
     const chartHeight = Math.max(
-        280,
-        chartData.length * 24
+        360,
+        chartData.length * 36
     );
 
     // ===============================
@@ -573,7 +595,7 @@ function HorizontalChart({
                     </h3>
                     <p
                         className="
-                        text-sm
+                        text-base
                         text-[#667085]"
                     >
                         {chartData.length} Kabupaten/Kota
@@ -598,7 +620,7 @@ function HorizontalChart({
                         barCategoryGap={2}
                         margin={{
                             top:8,
-                            right:20,
+                            right:28,
                             left:0,
                             bottom:8
                         }}
@@ -618,12 +640,13 @@ function HorizontalChart({
                         <YAxis
                             type="category"
                             dataKey="nama"
-                            width={120}
+                            width={170}
+                            interval={0}
                             axisLine={false}
                             tickLine={false}
                             tick={{
                             fill:"#344054",
-                            fontSize:13
+                            fontSize:14
                             }}
                         />
 
@@ -697,7 +720,7 @@ function AnomalyTable({
                 className="
                 rounded-2xl
                 border
-                border-gray-50
+                border-[#D9E1EA]
                 text-center
                 overflow-hidden"
             >
@@ -724,77 +747,44 @@ function AnomalyTable({
     return (
         <div
             className="
-            bg-white
-            rounded-2xl
-            border
-            border-gray-200
-            overflow-hidden"
+            overflow-x-auto"
         >
             <div
                 className="w-full"
             >
-                <div
-                className="
-                flex
-                items-center
-                justify-between
-                px-5
-                py-4
-                border-b
-                border-gray-100"
-                >
-                    <div>
-                        <h3
-                        className="
-                        text-lg
-                        font-semibold
-                        text-[#101828]"
-                        >
-                            Detail Anomali
-                        </h3>
-
-                        <p
-                        className="
-                        text-sm
-                        text-[#667085]
-                        mt-1"
-                        >
-                            Daftar data yang memerlukan validasi lebih lanjut.
-                        </p>
-                    </div>
-                </div>
                 <table
                     className="
                     w-full
-                    text-sm"
+                    text-[15px]"
                 >
                     <thead
                         className="
                         sticky
                         top-0
-                        bg-[#F8F9FB]
-                        shadow-[0_1px_0_0_#E4E7EC]
+                        bg-[#F1F5F9]
+                        text-[#52627A]
+                        shadow-[0_0_0_1px_#D9E1EA]
                         "
                     >
-                        <tr>
-                            <th className="w-14 px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide">
+                        <tr className="border-b border-[#D9E1EA]">
+                            <th className="w-14 px-4 py-2 text-left text-sm font-semibold uppercase tracking-wide">
                                 No
                             </th>
 
-                            <th className="w-20 px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide">
+                            <th className="w-20 px-4 py-2 text-left text-sm font-semibold uppercase tracking-wide">
                                 Baris
                             </th>
 
-                            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide">
+                            <th className="px-4 py-2 text-left text-sm font-semibold uppercase tracking-wide">
                                 Kabupaten/Kota
                             </th>
 
-                            <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide">
+                            <th className="px-4 py-2 text-left text-sm font-semibold uppercase tracking-wide">
                                 {indicatorName}
                             </th>
 
                             <th
-                                className="w-32 px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide"
+                                className="w-32 px-4 py-2 text-left text-sm font-semibold uppercase tracking-wide"
                                 title="Prioritas menunjukkan tingkat penyimpangan data"
                             >
                                 Prioritas
@@ -806,7 +796,7 @@ function AnomalyTable({
                                 px-4
                                 py-2
                                 text-left
-                                text-xs
+                                text-sm
                                 font-semibold
                                 uppercase
                                 tracking-wide"
@@ -830,13 +820,13 @@ function AnomalyTable({
                                         className="
                                         border-b
                                         last:border-b-0
-                                        border-gray-100
+                                        border-[#EEF2F6]
                                         hover:bg-[#FCFCFD]
                                         transition-colors"
                                     >
 
                                         {/* Nomor */}
-                                        <td className="px-4 py-2 text-xs text-gray-400">
+                                        <td className="px-4 py-2 text-sm text-gray-400">
                                             {startIndex + index + 1}
                                         </td>
 
@@ -881,25 +871,25 @@ function AnomalyTable({
                                             {
                                                 row.severity === "Tinggi" ? (
 
-                                                    <span className="inline-flex items-center gap-2 bg-[#FEE2E2] text-[#B42318] px-2 py-0.5 rounded-full text-xs font-medium">
+                                                    <span className="inline-flex items-center gap-2 bg-[#FEE2E2] text-[#B42318] px-2 py-0.5 rounded-full text-sm font-medium">
                                                         Tinggi
                                                     </span>
 
                                                 ) : row.severity === "Sedang" ? (
 
-                                                    <span className="inline-flex items-center gap-2 bg-[#FEF3C7] text-[#B45309] px-2 py-0.5 rounded-full text-xs font-medium">
+                                                    <span className="inline-flex items-center gap-2 bg-[#FEF3C7] text-[#B45309] px-2 py-0.5 rounded-full text-sm font-medium">
                                                         Sedang
                                                     </span>
 
                                                 ) : row.severity === "Rendah" ? (
 
-                                                    <span className="inline-flex items-center gap-2 bg-[#DCFCE7] text-[#15803D] px-2 py-0.5 rounded-full text-xs font-medium">
+                                                    <span className="inline-flex items-center gap-2 bg-[#DCFCE7] text-[#15803D] px-2 py-0.5 rounded-full text-sm font-medium">
                                                         Rendah
                                                     </span>
 
                                                 ) : (
 
-                                                    <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full text-xs">
+                                                    <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full text-sm">
                                                         -
                                                     </span>
 
@@ -943,6 +933,7 @@ export default function AnomalyAI() {
     const rowsPerPage = 10;
     const inputRef = useRef(null);
     const [showSuggestion, setShowSuggestion] = useState(false);
+    const [validationModal, setValidationModal] = useState(null);
 
     // ==========================
     // Load Dataset
@@ -994,7 +985,11 @@ export default function AnomalyAI() {
 
     const handleAnalyze = async () => {
         if (!selected) {
-            alert("Silakan pilih dataset.");
+            setValidationModal({
+                title: "Dataset Belum Dipilih",
+                message: "Pilih dataset terlebih dahulu sebelum memulai analisis.",
+                reasons: []
+            });
             return;
         }
 
@@ -1005,7 +1000,37 @@ export default function AnomalyAI() {
 
             if (!data) {
                 setResult(null);
-                alert("Dataset ini belum dapat dianalisis.");
+                setValidationModal({
+                    title: "Dataset Belum Siap Dianalisis",
+                    message: "Dataset ini belum memenuhi persyaratan minimum untuk analisis.",
+                    reasons: ["Data yang diperlukan belum tersedia atau belum dapat diproses."]
+                });
+                return;
+            }
+
+            if (
+                !Array.isArray(data?.anomaly?.all)
+                || !data?.summary
+            ) {
+                setResult(null);
+                setCurrentPage(1);
+                setSeverity("Semua");
+                setTableSearch("");
+
+                const validationErrors = Array.isArray(
+                    data?.validation?.errors
+                )
+                    ? data.validation.errors.join(" ")
+                    : "Struktur data belum memenuhi persyaratan analisis ML.";
+
+                setValidationModal({
+                    title: "Dataset Belum Siap Dianalisis",
+                    message: "Dataset ini belum memenuhi persyaratan minimum untuk analisis.",
+                    reasons: validationErrors
+                        .split(".")
+                        .map(reason => reason.trim())
+                        .filter(Boolean)
+                });
                 return;
             }
 
@@ -1015,7 +1040,11 @@ export default function AnomalyAI() {
         catch (err) {
             console.error(err);
             setResult(null);
-            alert("Terjadi kesalahan saat melakukan analisis.");
+            setValidationModal({
+                title: "Analisis Belum Selesai",
+                message: "Dataset belum dapat dianalisis saat ini.",
+                reasons: ["Periksa kembali dataset dan coba lagi."]
+            });
         }
         finally {
             setLoading(false);
@@ -1027,7 +1056,7 @@ export default function AnomalyAI() {
     // ==========================
 
     const filteredRows = useMemo(() => {
-        if (!result) return [];
+        if (!result || !Array.isArray(result.anomaly?.all)) return [];
         return result.anomaly.all
             .filter(row => row.status === "Anomali")
             .filter(row =>
@@ -1050,7 +1079,7 @@ export default function AnomalyAI() {
     );
 
     const chartRows = useMemo(() => {
-        if (!result) return [];
+        if (!result || !Array.isArray(result.anomaly?.all)) return [];
 
         return result.anomaly.all.filter(
             row => row.status === "Anomali"
@@ -1097,28 +1126,39 @@ export default function AnomalyAI() {
         <div
             className="
             min-h-screen
-            bg-[#F9FAFB]
-            px-10
-            py-8"
+            bg-[#F7F9FC]
+            bg-[radial-gradient(#DDE5EE_0.7px,transparent_0.7px)]
+            bg-[size:18px_18px]
+            font-sans
+            tracking-[0.01em]
+            px-5
+            py-6
+            sm:px-8
+            lg:px-10"
         >
             <main
                 className="
-                max-w-7xl
+                max-w-[1180px]
                 mx-auto
-                space-y-10"
+                space-y-7"
             >
             <button
             className="
             inline-flex
             items-center
             gap-2
-            text-sm
-            font-medium
-            text-[#667085]
-            hover:text-[#101828]
+            text-xs
+            font-semibold
+            text-[#B42318]
+            rounded-lg
+            px-2
+            py-1.5
+            hover:bg-[#FFF1F1]
+            hover:text-[#912018]
             transition"
             >
-            ← Kembali ke Beranda
+            <ArrowLeft size={15} />
+            Kembali ke Beranda
         </button>
 
             {/* ========================== */}
@@ -1129,10 +1169,12 @@ export default function AnomalyAI() {
                 className="
                 bg-white
                 border
-                border-gray-200
-                rounded-3xl
-                p-8
-                space-y-6
+                border-[#D9E1EA]
+                rounded-2xl
+                p-6
+                shadow-[0_8px_24px_rgba(16,24,40,0.04)]
+                space-y-5
+                sm:p-8
                 "
             >
 
@@ -1141,8 +1183,8 @@ export default function AnomalyAI() {
                     inline-flex
                     items-center
                     rounded-full
-                    bg-red-50
-                    text-red-700
+                    bg-[#FFF1F1]
+                    text-[#B42318]
                     text-xs
                     font-semibold
                     tracking-wide
@@ -1156,10 +1198,10 @@ export default function AnomalyAI() {
 
                 <h1
                     className="
-                    text-[30px]
+                    text-[28px]
                     font-bold
                     tracking-tight
-                    text-[#101828]"
+                    text-[#111827]"
                 >
                     Modul AI Deteksi Anomali
                 </h1>
@@ -1170,7 +1212,7 @@ export default function AnomalyAI() {
                 max-w-3xl
                 text-[15px]
                 leading-7
-                text-[#667085]"
+                text-[#5B6B82]"
                 >
                     Mendeteksi data yang menyimpang dari pola umum menggunakan Artificial Intelligence untuk membantu proses validasi kualitas dataset Satu Data Aceh.
                 </p>
@@ -1180,11 +1222,14 @@ export default function AnomalyAI() {
                     pt-2
                     flex
                     gap-3
-                    items-end
-                    max-w-4xl"
+                    items-stretch
+                    flex-col
+                    max-w-4xl
+                    sm:flex-row
+                    sm:items-end"
                     >
 
-                    <div className="w-[680px]">
+                    <div className="w-full sm:w-[680px]">
                         <DatasetSelector
                             datasets={datasets}
                             selected={selected}
@@ -1205,13 +1250,15 @@ export default function AnomalyAI() {
                         px-5
                         rounded-xl
                         border
-                        border-[#D92D20]
-                        bg-white
-                        text-[#D92D20]
-                        text-sm
+                        border-[#D40000]
+                        bg-[#D40000]
+                        text-white
+                        text-base
+                        font-semibold
+                        shadow-[0_5px_12px_rgba(212,0,0,0.18)]
                         transition
-                        hover:bg-[#D92D20]
-                        hover:text-white
+                        hover:bg-[#B80000]
+                        hover:border-[#B80000]
                         disabled:opacity-50
                         "
                     >
@@ -1242,12 +1289,12 @@ export default function AnomalyAI() {
 
             {
                 !result && !loading && (
-                    <section className="py-10">
+                    <section className="py-5 sm:py-8">
                         <h2
                             className="
                             text-lg
                             font-semibold
-                            text-[#101828]
+                            text-[#111827]
                             mb-8"
                         >
                             Bagaimana AI Membantu
@@ -1255,10 +1302,11 @@ export default function AnomalyAI() {
 
                         <div
                             className="
-                            flex
-                            items-start
-                            justify-between
-                            gap-4"
+                            grid
+                            grid-cols-1
+                            gap-5
+                            md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr]
+                            md:items-start"
                         >
 
                             {/* STEP 1 */}
@@ -1269,7 +1317,7 @@ export default function AnomalyAI() {
                                     h-10
                                     mx-auto
                                     rounded-full
-                                    bg-[#FEECEC]
+                                    bg-[#FFF1F1]
                                     text-[#B42318]
                                     flex
                                     items-center
@@ -1286,7 +1334,7 @@ export default function AnomalyAI() {
                                 </p>
                             </div>
 
-                            <div className="flex-1 h-px bg-gray-200 mt-5"></div>
+                            <div className="hidden md:block w-10 h-px bg-[#D9E1EA] mt-5"></div>
                             {/* STEP 2 */}
                             <div className="flex-1 text-center">
                                 <div
@@ -1295,7 +1343,7 @@ export default function AnomalyAI() {
                                     h-10
                                     mx-auto
                                     rounded-full
-                                    bg-[#FEECEC]
+                                    bg-[#FFF1F1]
                                     text-[#B42318]
                                     flex
                                     items-center
@@ -1312,7 +1360,7 @@ export default function AnomalyAI() {
                                 </p>
                             </div>
 
-                            <div className="flex-1 h-px bg-gray-200 mt-5"></div>
+                            <div className="hidden md:block w-10 h-px bg-[#D9E1EA] mt-5"></div>
                             {/* STEP 3 */}
                             <div className="flex-1 text-center">
                                 <div
@@ -1321,7 +1369,7 @@ export default function AnomalyAI() {
                                     h-10
                                     mx-auto
                                     rounded-full
-                                    bg-[#FEECEC]
+                                    bg-[#FFF1F1]
                                     text-[#B42318]
                                     flex
                                     items-center
@@ -1338,7 +1386,7 @@ export default function AnomalyAI() {
                                 </p>
                             </div>
 
-                            <div className="flex-1 h-px bg-gray-200 mt-5"></div>
+                            <div className="hidden md:block w-10 h-px bg-[#D9E1EA] mt-5"></div>
                             {/* STEP 4 */}
                             <div className="flex-1 text-center">
                                 <div
@@ -1347,7 +1395,7 @@ export default function AnomalyAI() {
                                     h-10
                                     mx-auto
                                     rounded-full
-                                    bg-[#FEECEC]
+                                    bg-[#FFF1F1]
                                     text-[#B42318]
                                     flex
                                     items-center
@@ -1372,11 +1420,13 @@ export default function AnomalyAI() {
                     <>
                         <div
                             className="
-                            bg-white
-                            rounded-3xl
+                            bg-white/95
+                            rounded-2xl
                             border
-                            border-gray-200
-                            p-8
+                            border-[#D9E1EA]
+                            p-6
+                            shadow-[0_8px_24px_rgba(16,24,40,0.04)]
+                            sm:p-8
                         "
                         >
                         <DatasetInfo
@@ -1427,12 +1477,22 @@ export default function AnomalyAI() {
 
                         <div
                             className="
-                            mt-10
-                            bg-white
-                            rounded-3xl
+                            grid
+                            grid-cols-1
+                            gap-6
+                            lg:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.9fr)]
+                            lg:items-stretch"
+                        >
+                        <div
+                            className="
+                            h-full
+                            bg-white/95
+                            rounded-2xl
                             border
-                            border-gray-200
-                            p-8"
+                            border-[#D9E1EA]
+                            p-6
+                            shadow-[0_8px_24px_rgba(16,24,40,0.04)]
+                            sm:p-8"
                         >
 
                             <HorizontalChart
@@ -1442,20 +1502,21 @@ export default function AnomalyAI() {
 
                         <div
                             className="
-                            mt-8
-                            grid
-                            grid-cols-1
-                            lg:grid-cols-2
+                            flex
+                            flex-col
                             gap-6"
                         >
 
                             <div
                                 className="
+                                flex-1
                                 bg-white
-                                rounded-3xl
+                                rounded-2xl
                                 border
-                                border-gray-200
-                                p-8"
+                                border-[#D9E1EA]
+                                p-6
+                                shadow-[0_8px_24px_rgba(16,24,40,0.04)]
+                                sm:p-8"
                             >
                                 <InsightCard
                                     insight={result.insight}
@@ -1464,17 +1525,21 @@ export default function AnomalyAI() {
 
                             <div
                                 className="
+                                flex-1
                                 bg-white
-                                rounded-3xl
+                                rounded-2xl
                                 border
-                                border-gray-200
-                                p-8"
+                                border-[#D9E1EA]
+                                p-6
+                                shadow-[0_8px_24px_rgba(16,24,40,0.04)]
+                                sm:p-8"
                             >
                                 <RecommendationCard
                                     recommendation={result.recommendation}
                                 />
                             </div>
 
+                        </div>
                         </div>
                         <div className="mt-12"></div>
 
@@ -1484,14 +1549,17 @@ export default function AnomalyAI() {
                                 className="
                                 bg-white
                                 border
-                                border-gray-200
-                                rounded-2xl
-                                p-5
+                                border-[#D9E1EA]
+                                rounded-xl
+                                shadow-[0_5px_18px_rgba(16,24,40,0.03)]
+                                overflow-hidden
                                 mb-6"
                             >
 
                                 <div
                                     className="
+                                    px-5
+                                    py-5
                                     flex
                                     flex-col
                                     lg:flex-row
@@ -1504,18 +1572,18 @@ export default function AnomalyAI() {
                                         className="
                                         text-lg
                                         font-semibold
-                                        text-gray-900"
+                                        text-[#111827]"
                                     >
                                         Data Anomali
                                     </h2>
 
                                     <p
                                         className="
-                                        text-sm
-                                        text-gray-500
+                                        text-[15px]
+                                        text-[#5B6B82]
                                         mt-1"
                                     >
-                                        {filteredRows.length} data terdeteksi
+                                        {filteredRows.length} data anomali terdeteksi dalam dataset
                                     </p>
 
                                 </div>
@@ -1538,14 +1606,15 @@ export default function AnomalyAI() {
                                         }}
                                         className="
                                             border
-                                            border-gray-200
+                                            border-[#D9E1EA]
                                             rounded-lg
                                             px-4
                                             py-2
                                             w-72
+                                            text-base
                                             focus:outline-none
                                             focus:ring-1
-                                            focus:ring-gray-300"
+                                            focus:ring-[#FECACA]"
                                     />
 
                                     <select
@@ -1553,13 +1622,14 @@ export default function AnomalyAI() {
                                         onChange={(e)=>setSeverity(e.target.value)}
                                         className="
                                             border
-                                            border-gray-200
+                                            border-[#D9E1EA]
                                             rounded-lg
                                             px-4
                                             py-2
+                                            text-base
                                             focus:outline-none
                                             focus:ring-1
-                                            focus:ring-gray-300"
+                                            focus:ring-[#FECACA]"
                                     >
 
                                         <option>Semua</option>
@@ -1570,12 +1640,12 @@ export default function AnomalyAI() {
                                     </select>
                                 </div>
                             </div>
-                            </div>
 
                             <AnomalyTable
                                 rows={currentRows}
                                 startIndex={startIndex}
                             />
+                            </div>
 
                             {
                                 filteredRows.length > 0 && (
@@ -1587,7 +1657,7 @@ export default function AnomalyAI() {
                                         items-center
                                         gap-5
                                         mt-8
-                                        text-sm"
+                                        text-[15px]"
                                     >
 
                                         {/* Previous */}
@@ -1649,6 +1719,99 @@ export default function AnomalyAI() {
                 )
             }
             </main>
+
+            {
+                validationModal && (
+                    <div
+                        className="
+                        fixed
+                        inset-0
+                        z-50
+                        flex
+                        items-center
+                        justify-center
+                        bg-[#101828]/35
+                        px-5
+                        py-8
+                        backdrop-blur-[2px]"
+                        role="presentation"
+                    >
+                        <div
+                            className="
+                            w-full
+                            max-w-md
+                            rounded-2xl
+                            border
+                            border-[#D9E1EA]
+                            bg-white
+                            p-6
+                            shadow-[0_20px_50px_rgba(16,24,40,0.18)]
+                            sm:p-7"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="validation-modal-title"
+                        >
+                            <div
+                                className="
+                                flex
+                                h-11
+                                w-11
+                                items-center
+                                justify-center
+                                rounded-xl
+                                bg-[#FFF4E5]
+                                text-[#B54708]"
+                            >
+                                <TriangleAlert size={22} />
+                            </div>
+
+                            <h2
+                                id="validation-modal-title"
+                                className="
+                                mt-5
+                                text-xl
+                                font-bold
+                                text-[#101828]"
+                            >
+                                {validationModal.title}
+                            </h2>
+
+                            <p
+                                className="
+                                mt-2
+                                text-base
+                                leading-7
+                                text-[#5B6B82]"
+                            >
+                                {validationModal.message}
+                            </p>
+
+                            <button
+                                type="button"
+                                onClick={() => setValidationModal(null)}
+                                className="
+                                mt-7
+                                ml-auto
+                                block
+                                rounded-lg
+                                border
+                                border-[#E4B7B3]
+                                bg-[#FFF8F7]
+                                px-4
+                                py-2
+                                text-sm
+                                font-semibold
+                                text-[#B42318]
+                                transition
+                                hover:bg-[#FFF1F1]
+                                hover:border-[#D98A82]"
+                            >
+                                Tutup
+                            </button>
+                        </div>
+                    </div>
+                )
+            }
         </div>
     );
 }
