@@ -1,18 +1,10 @@
 import { createBrowserRouter } from "react-router-dom";
-
-import Layout from "../components/Layout";
-import AnomalyAI from "../pages/AnomalyAI";
+import AnomalyAI from "../AnomalyAI";
 
 const router = createBrowserRouter([
     {
         path: "/",
-        element: <Layout />,
-        children: [
-            {
-                index: true,
-                element: <AnomalyAI />
-            }
-        ]
+        element: <AnomalyAI />
     }
 ]);
 
