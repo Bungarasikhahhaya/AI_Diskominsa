@@ -22,6 +22,6 @@ app.include_router(router)
 @app.get("/")
 def root():
     return {
-        "service": "Aceh AI",
+        "service": "SADA AI",
         "status": "Running"
     }

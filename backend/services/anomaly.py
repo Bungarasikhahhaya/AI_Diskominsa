@@ -1,7 +1,7 @@
 from common.api_client import APIClient
 from common.dataset_discovery import DatasetDiscovery
 from sklearn.ensemble import IsolationForest
-from services.preprocess import PreprocessingEngine
+from services.preprocess import AnomalyPreprocessingEngine
 from services.postprocess import PostprocessEngine
 from services.profile import ProfileEngine
 
@@ -39,7 +39,7 @@ class AnomalyService:
         # Preprocessing
         # ==========================================
 
-        preprocessor = PreprocessingEngine(
+        preprocessor = AnomalyPreprocessingEngine(
             df,
             schema
         )

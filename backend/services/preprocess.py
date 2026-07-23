@@ -1,6 +1,6 @@
 import pandas as pd
 
-class PreprocessingEngine:
+class AnomalyPreprocessingEngine:
     def __init__(self, dataframe, schema):
         self.original_df = dataframe.copy()
         self.schema = schema
