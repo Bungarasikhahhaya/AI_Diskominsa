@@ -4,3 +4,7 @@ numpy>=1.24
 plotly>=5.20
 fastapi>=0.111
 uvicorn[standard]>=0.30
+supabase>=2.4.5
+langchain-google-genai
+sentence-transformers
+langchain-huggingface

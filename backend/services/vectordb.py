@@ -1,19 +1,22 @@
-import uuid
-import chromadb
 import math
-
+# pyrefly: ignore [missing-import]
+from supabase import create_client, Client
+from langchain_huggingface import HuggingFaceEmbeddings
+from config import SUPABASE_URL, SUPABASE_SECRET_KEY, GOOGLE_API_KEY
 from services.query_processor import normalize_question
 
 # =====================================================
-# Membuat / Membuka ChromaDB
+# Supabase & Embeddings Initialization
 # =====================================================
 
-client = chromadb.PersistentClient(
-    path="chroma_db"
-)
+if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
+    print("WARNING: SUPABASE_URL atau SUPABASE_SECRET_KEY tidak diset.")
+    
+supabase: Client = create_client(SUPABASE_URL or "", SUPABASE_SECRET_KEY or "")
 
-collection = client.get_or_create_collection(
-    name="aceh_statistics"
+# Menggunakan model lokal (dimensi 384) persis seperti bawaan ChromaDB
+embeddings = HuggingFaceEmbeddings(
+    model_name="all-MiniLM-L6-v2"
 )
 
 # =====================================================
@@ -21,26 +24,12 @@ collection = client.get_or_create_collection(
 # =====================================================
 
 IGNORE_FIELDS = {
-
-    "id",
-    "uuid",
-
-    "created_at",
-    "updated_at",
-    "deleted_at",
-
-    "bps_kode_provinsi",
-    "kemendagri_kode_provinsi",
-
-    "bps_kode_kabupaten_kota",
-    "kemendagri_kode_kabupaten_kota",
-
-    "bps_kode_kecamatan",
-    "kemendagri_kode_kecamatan",
-
-    "bps_kode_desa",
-    "kemendagri_kode_desa"
-
+    "id", "uuid",
+    "created_at", "updated_at", "deleted_at",
+    "bps_kode_provinsi", "kemendagri_kode_provinsi",
+    "bps_kode_kabupaten_kota", "kemendagri_kode_kabupaten_kota",
+    "bps_kode_kecamatan", "kemendagri_kode_kecamatan",
+    "bps_kode_desa", "kemendagri_kode_desa"
 }
 
 # =====================================================
@@ -48,34 +37,19 @@ IGNORE_FIELDS = {
 # =====================================================
 
 def clean_metadata_value(value):
-    """
-    ChromaDB hanya menerima metadata bertipe:
-    str, int, float, bool
-    """
-
     if value is None:
         return None
-
     if isinstance(value, bool):
         return value
-
     if isinstance(value, int):
         return value
-
     if isinstance(value, float):
         if math.isnan(value):
             return None
         return value
 
     value = str(value).strip()
-
-    if value == "":
-        return None
-
-    if value.lower() == "none":
-        return None
-
-    if value.lower() == "nan":
+    if value == "" or value.lower() in ("none", "nan"):
         return None
 
     return value
@@ -83,14 +57,8 @@ def clean_metadata_value(value):
 # =====================================================
 # Build Metadata
 # =====================================================
-def build_metadata(
-    row,
-    title,
-    identifier,
-    document_number,
-    dataset_url=None
-):
 
+def build_metadata(row, title, identifier, document_number, dataset_url=None):
     metadata = {
         "dataset": title,
         "identifier": identifier,
@@ -100,326 +68,218 @@ def build_metadata(
     if dataset_url:
         metadata["url"] = str(dataset_url)
 
-    # -------------------------
-    # Provinsi
-    # -------------------------
+    provinsi = clean_metadata_value(row.get("bps_nama_provinsi") or row.get("kemendagri_nama_provinsi"))
+    if provinsi: metadata["provinsi"] = provinsi
 
-    provinsi = clean_metadata_value(
-        row.get("bps_nama_provinsi")
-        or row.get("kemendagri_nama_provinsi")
-    )
+    region = clean_metadata_value(row.get("bps_nama_kabupaten_kota") or row.get("kemendagri_nama_kabupaten_kota"))
+    if region: metadata["region"] = region
 
-    if provinsi is not None:
-        metadata["provinsi"] = provinsi
+    kecamatan = clean_metadata_value(row.get("bps_nama_kecamatan") or row.get("kemendagri_nama_kecamatan"))
+    if kecamatan: metadata["kecamatan"] = kecamatan
 
-    # -------------------------
-    # Kabupaten/Kota
-    # -------------------------
-
-    region = clean_metadata_value(
-        row.get("bps_nama_kabupaten_kota")
-        or row.get("kemendagri_nama_kabupaten_kota")
-    )
-
-    if region is not None:
-        metadata["region"] = region
-
-    # -------------------------
-    # Kecamatan
-    # -------------------------
-
-    kecamatan = clean_metadata_value(
-        row.get("bps_nama_kecamatan")
-        or row.get("kemendagri_nama_kecamatan")
-    )
-
-    if kecamatan is not None:
-        metadata["kecamatan"] = kecamatan
-
-    # -------------------------
-    # Desa
-    # -------------------------
-
-    desa = clean_metadata_value(
-        row.get("bps_nama_desa")
-        or row.get("kemendagri_nama_desa")
-    )
-
-    if desa is not None:
-        metadata["desa"] = desa
-
-    # -------------------------
-    # Semua kolom lain
-    # -------------------------
+    desa = clean_metadata_value(row.get("bps_nama_desa") or row.get("kemendagri_nama_desa"))
+    if desa: metadata["desa"] = desa
 
     for key, value in row.items():
-
         if key in IGNORE_FIELDS:
             continue
-
         clean_value = clean_metadata_value(value)
-
         if clean_value is None:
             continue
-
-        metadata[key] = clean_value
-
-    return metadata
-
-    # ===========================
-    # URL Dataset
-    # ===========================
-
-    if dataset_url:
-
-        metadata["url"] = dataset_url
-
-    # ===========================
-    # Normalisasi wilayah
-    # ===========================
-
-    metadata["provinsi"] = (
-
-        row.get("bps_nama_provinsi")
-
-        or row.get("kemendagri_nama_provinsi")
-
-    )
-
-    metadata["region"] = (
-
-        row.get("bps_nama_kabupaten_kota")
-
-        or row.get("kemendagri_nama_kabupaten_kota")
-
-    )
-
-    metadata["kecamatan"] = (
-
-        row.get("bps_nama_kecamatan")
-
-        or row.get("kemendagri_nama_kecamatan")
-
-    )
-
-    metadata["desa"] = (
-
-        row.get("bps_nama_desa")
-
-        or row.get("kemendagri_nama_desa")
-
-    )
-
-    # ===========================
-    # Simpan seluruh kolom
-    # ===========================
-
-    for key, value in row.items():
-
-        if key in IGNORE_FIELDS:
-            continue
-
-        if value is None:
-            continue
-
-        value = str(value).strip()
-
-        if value == "":
-            continue
-
-        metadata[key] = value
+        # pastikan semua di cast ke string (Supabase jsonb bisa terima apapun, tapi ini menjaga konsistensi dengan Chroma sebelumnya)
+        metadata[key] = str(clean_value)
 
     return metadata
-
 
 # =====================================================
 # Insert Documents
 # =====================================================
 
-def insert_documents(
-    documents,
-    rows,
-    title,
-    identifier,
-    dataset_url=None
-):
-    """
-    Menyimpan dokumen ke ChromaDB.
-    """
-
+def insert_documents(documents, rows, title, identifier, dataset_url=None):
+    """Menyimpan dokumen ke Supabase (pgvector)."""
     if len(documents) == 0:
         return
 
-    ids = []
+    # Generate embeddings untuk batch dokumen
+    try:
+        doc_embeddings = embeddings.embed_documents(documents)
+    except Exception as e:
+        print(f"Gagal membuat embedding: {e}")
+        raise e
 
-    metadatas = []
-
-    for i, (document, row) in enumerate(zip(documents, rows)):
-
-        ids.append(str(uuid.uuid4()))
-
+    records = []
+    for i, (doc, row, emb) in enumerate(zip(documents, rows, doc_embeddings)):
         metadata = build_metadata(
-            row=row,
-            title=title,
-            identifier=identifier,
-            document_number=i + 1,
-            dataset_url=dataset_url
+            row=row, title=title, identifier=identifier,
+            document_number=i + 1, dataset_url=dataset_url
         )
+        
+        # Ekstrak nilai spesifik untuk kolom tersendiri
+        dataset_val = title
+        identifier_val = identifier
+        
+        tahun_val = None
+        for key in ["tahun", "waktu", "year", "periode"]:
+            if key in row and row[key]:
+                try:
+                    tahun_val = int(row[key])
+                    break
+                except ValueError:
+                    pass
+                    
+        wilayah_val = metadata.get("region") or metadata.get("provinsi") or metadata.get("kecamatan") or metadata.get("desa") or None
+        
+        records.append({
+            "dataset": dataset_val,
+            "identifier": identifier_val,
+            "tahun": tahun_val,
+            "wilayah": wilayah_val,
+            "document": doc,
+            "metadata": metadata,
+            "embedding": emb
+        })
 
-        metadatas.append(metadata)
-
-    # tampilkan 1 metadata saja
-    if metadatas:
+    # tampilkan 1 sampel
+    if records:
         print("=" * 80)
         print("SAMPLE METADATA")
-        for key, value in metadatas[0].items():
+        for key, value in records[0]["metadata"].items():
             print(f"{key} => {type(value)} => {repr(value)}")
         print("=" * 80)
 
-    collection.add(
-        ids=ids,
-        documents=documents,
-        metadatas=metadatas
-    )
-    
+    # Insert ke tabel Supabase (batching opsional jika terlalu besar, tapi Supabase bisa handle ratusan row sekaligus)
+    BATCH_SIZE = 100
+    for i in range(0, len(records), BATCH_SIZE):
+        batch = records[i:i + BATCH_SIZE]
+        try:
+            supabase.table("aceh_statistics").insert(batch).execute()
+        except Exception as e:
+            print(f"Gagal insert ke Supabase: {e}")
 
 # =====================================================
 # Search
 # =====================================================
 
-def search_documents(
-    query,
-    n_results=10
-):
-    """
-    Mencari dokumen yang paling relevan.
-    """
-
-    query = normalize_question(query)
+def search_documents(query, n_results=10):
+    """Mencari dokumen yang paling relevan menggunakan pgvector RPC."""
+    query_norm = normalize_question(query)
 
     print("=" * 70)
     print("QUERY")
-    print(query)
+    print(query_norm)
     print("=" * 70)
 
-    return collection.query(
+    try:
+        query_embedding = embeddings.embed_query(query_norm)
+    except Exception as e:
+        print(f"Gagal embed query: {e}")
+        return {"documents": [[]], "metadatas": [[]], "distances": [[]]}
 
-        query_texts=[query],
+    # Panggil fungsi RPC 'match_documents' di Supabase
+    try:
+        response = supabase.rpc("match_documents", {
+            "query_embedding": query_embedding,
+            "match_count": n_results
+        }).execute()
+        
+        results = response.data
+    except Exception as e:
+        print(f"Gagal mencari di Supabase: {e}")
+        return {"documents": [[]], "metadatas": [[]], "distances": [[]]}
 
-        n_results=n_results
+    # Format kembali seperti ChromaDB output
+    docs = []
+    metas = []
+    dists = []
+    
+    for r in results:
+        docs.append(r.get("document", ""))
+        metas.append(r.get("metadata", {}))
+        # RPC mengembalikan similarity (0 sampai 1), kita ubah ke distance (1 - similarity)
+        similarity = r.get("similarity", 0)
+        dists.append(1 - similarity)
 
-    )
-
+    return {
+        "documents": [docs],
+        "metadatas": [metas],
+        "distances": [dists]
+    }
 
 # =====================================================
 # Show Results
 # =====================================================
 
 def show_results(result):
-
     documents = result.get("documents", [[]])[0]
-
     metadatas = result.get("metadatas", [[]])[0]
-
     distances = result.get("distances", [[]])[0]
 
     if len(documents) == 0:
-
         print("Tidak ada dokumen ditemukan.")
-
         return
 
     for i in range(len(documents)):
-
         print("=" * 80)
-
         print(f"HASIL {i+1}")
-
         print(f"Distance : {distances[i]:.4f}")
-
         print()
-
         print("Metadata")
-
         for key, value in metadatas[i].items():
-
             print(f"{key} : {value}")
-
         print()
-
         print("-" * 80)
-
         print(documents[i][:800])
-
         print()
-
 
 # =====================================================
 # Count
 # =====================================================
 
 def count_documents():
-
-    return collection.count()
-
+    try:
+        res = supabase.table("aceh_statistics").select("id", count="exact").limit(1).execute()
+        return res.count
+    except Exception:
+        return 0
 
 # =====================================================
 # Preview
 # =====================================================
 
 def preview_documents(limit=5):
-
-    data = collection.get()
-
-    total = len(data["ids"])
-
-    print(f"Total Dokumen : {total}")
-
+    try:
+        res = supabase.table("aceh_statistics").select("*").limit(limit).execute()
+        data = res.data
+    except Exception as e:
+        print(f"Gagal preview: {e}")
+        return
+        
+    total = count_documents()
+    print(f"Total Dokumen (Approx) : {total}")
     print("-" * 80)
 
-    for i in range(min(limit, total)):
-
-        print(f"ID : {data['ids'][i]}")
-
+    for i, row in enumerate(data):
+        print(f"ID : {row.get('id')}")
         print()
-
         print("Metadata")
-
-        for key, value in data["metadatas"][i].items():
-
+        for key, value in (row.get("metadata") or {}).items():
             print(f"{key} : {value}")
-
         print()
-
         print("Document")
-
-        print(data["documents"][i][:800])
-
+        print(str(row.get("document", ""))[:800])
         print()
-
         print("-" * 80)
-
 
 # =====================================================
 # Clear Database
 # =====================================================
 
 def clear_database():
-
     try:
-
-        client.delete_collection("aceh_statistics")
-
-    except Exception:
-
-        pass
-
-    global collection
-
-    collection = client.get_or_create_collection(
-
-        name="aceh_statistics"
-
-    )
-
-    print("Semua dokumen berhasil dihapus.")
+        # Menghapus semua data (hanya jika ada RLS policy yang mengizinkan atau menggunakan service role)
+        # Atau bisa pakai fungsi rpc untuk delete all
+        # Di sini kita mencoba delete dengan match tidak kosong
+        supabase.table("aceh_statistics").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+        print("Semua dokumen berhasil dihapus dari Supabase.")
+    except Exception as e:
+        print(f"Gagal menghapus dokumen: {e}")
