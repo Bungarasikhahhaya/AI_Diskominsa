@@ -1142,24 +1142,6 @@ export default function AnomalyAI() {
                 mx-auto
                 space-y-7"
             >
-            <button
-            className="
-            inline-flex
-            items-center
-            gap-2
-            text-xs
-            font-semibold
-            text-[#B42318]
-            rounded-lg
-            px-2
-            py-1.5
-            hover:bg-[#FFF1F1]
-            hover:text-[#912018]
-            transition"
-            >
-            <ArrowLeft size={15} />
-            Kembali ke Beranda
-        </button>
 
             {/* ========================== */}
             {/* Analyze Card */}
@@ -1167,7 +1149,9 @@ export default function AnomalyAI() {
 
             <section
                 className="
-                bg-white
+                relative
+                overflow-hidden
+                bg-[radial-gradient(circle_at_100%_0%,rgba(254,226,226,0.72),transparent_35%),linear-gradient(125deg,#FFFFFF_0%,#FFFFFF_66%,#FFF8F8_100%)]
                 border
                 border-[#D9E1EA]
                 rounded-2xl
@@ -1178,8 +1162,35 @@ export default function AnomalyAI() {
                 "
             >
 
+                <div
+                    aria-hidden="true"
+                    className="
+                    pointer-events-none
+                    absolute
+                    right-4
+                    top-4
+                    hidden
+                    h-40
+                    w-48
+                    opacity-40
+                    sm:block"
+                >
+                    <div className="absolute inset-x-0 bottom-5 h-px bg-gradient-to-r from-transparent via-[#E7A5A0] to-transparent" />
+                    <div className="absolute bottom-5 right-2 flex h-36 items-end gap-2">
+                        <div className="h-10 w-3 rounded-t-sm bg-gradient-to-t from-[#B42318] to-[#F4B2AD]" />
+                        <div className="h-20 w-3 rounded-t-sm bg-gradient-to-t from-[#B42318] to-[#F4B2AD]" />
+                        <div className="h-14 w-3 rounded-t-sm bg-gradient-to-t from-[#B42318] to-[#F4B2AD]" />
+                        <div className="h-28 w-3 rounded-t-sm bg-gradient-to-t from-[#B42318] to-[#F4B2AD]" />
+                        <div className="h-24 w-3 rounded-t-sm bg-gradient-to-t from-[#B42318] to-[#F4B2AD]" />
+                        <div className="h-32 w-3 rounded-t-sm bg-gradient-to-t from-[#B42318] to-[#F4B2AD]" />
+                    </div>
+                    <div className="absolute right-0 top-1 h-24 w-24 rounded-full border border-[#E7A5A0]/40" />
+                </div>
+
                 <span
                     className="
+                    relative
+                    z-10
                     inline-flex
                     items-center
                     rounded-full
@@ -1198,6 +1209,8 @@ export default function AnomalyAI() {
 
                 <h1
                     className="
+                    relative
+                    z-10
                     text-[28px]
                     font-bold
                     tracking-tight
@@ -1208,17 +1221,21 @@ export default function AnomalyAI() {
 
                 <p
                 className="
+                relative
+                z-10
                 mt-3
-                max-w-3xl
+                max-w-[42rem]
                 text-[15px]
                 leading-7
                 text-[#5B6B82]"
                 >
-                    Mendeteksi data yang menyimpang dari pola umum menggunakan Artificial Intelligence untuk membantu proses validasi kualitas dataset Satu Data Aceh.
+                    Identifikasi data yang menyimpang dari pola umum untuk membantu validasi kualitas dataset Satu Data Aceh.
                 </p>
 
                 <div
                     className="
+                    relative
+                    z-10
                     pt-2
                     flex
                     gap-3
@@ -1289,9 +1306,11 @@ export default function AnomalyAI() {
 
             {
                 !result && !loading && (
-                    <section className="py-5 sm:py-8">
+                    <section className="relative overflow-hidden rounded-2xl bg-white/35 px-3 py-5 sm:px-5 sm:py-8">
                         <h2
                             className="
+                            relative
+                            z-10
                             text-lg
                             font-semibold
                             text-[#111827]
@@ -1302,11 +1321,21 @@ export default function AnomalyAI() {
 
                         <div
                             className="
+                            relative
+                            z-10
+                            rounded-xl
+                            bg-gradient-to-r
+                            from-white/20
+                            via-[#FFF8F8]/55
+                            to-white/20
+                            px-2
+                            py-4
                             grid
                             grid-cols-1
                             gap-5
                             md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr]
-                            md:items-start"
+                            md:items-start
+                            md:px-4"
                         >
 
                             {/* STEP 1 */}
@@ -1334,7 +1363,7 @@ export default function AnomalyAI() {
                                 </p>
                             </div>
 
-                            <div className="hidden md:block w-10 h-px bg-[#D9E1EA] mt-5"></div>
+                            <div className="hidden md:block w-10 h-px bg-gradient-to-r from-[#E7A5A0] to-[#F1D8D6] mt-5"></div>
                             {/* STEP 2 */}
                             <div className="flex-1 text-center">
                                 <div
@@ -1360,7 +1389,7 @@ export default function AnomalyAI() {
                                 </p>
                             </div>
 
-                            <div className="hidden md:block w-10 h-px bg-[#D9E1EA] mt-5"></div>
+                            <div className="hidden md:block w-10 h-px bg-gradient-to-r from-[#E7A5A0] to-[#F1D8D6] mt-5"></div>
                             {/* STEP 3 */}
                             <div className="flex-1 text-center">
                                 <div
@@ -1386,7 +1415,7 @@ export default function AnomalyAI() {
                                 </p>
                             </div>
 
-                            <div className="hidden md:block w-10 h-px bg-[#D9E1EA] mt-5"></div>
+                            <div className="hidden md:block w-10 h-px bg-gradient-to-r from-[#E7A5A0] to-[#F1D8D6] mt-5"></div>
                             {/* STEP 4 */}
                             <div className="flex-1 text-center">
                                 <div
