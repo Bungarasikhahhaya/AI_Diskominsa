@@ -1,5 +1,5 @@
 """
-Generate Insight Otomatis — Modul 3
+Generate Insight Otomatis — Modul 3 (Batching Edition)
 
 Struktur folder yang diasumsikan:
     AI Prediksi Tren/
@@ -8,36 +8,21 @@ Struktur folder yang diasumsikan:
     ├── ...
     └── generate_insight.py                <- taruh script ini di sini
 
-Untuk SETIAP baris di proyeksi_semua_indikator.csv (1 baris = 1 kombinasi
-indikator + wilayah), script ini memanggil Claude API untuk menghasilkan
-1-2 kalimat insight dalam bahasa manusia, lalu menyimpan hasilnya sebagai
-kolom baru 'insight_text'.
-
-PRINSIP PENTING: LLM di sini HANYA merangkai kalimat dari angka yang sudah
-final (hasil regresi linear di prediksi_tren.py). LLM TIDAK diminta
-menghitung ulang tren atau proyeksi apapun -> supaya angka yang ditampilkan
-selalu konsisten antara grafik dan narasi, dan tidak ada risiko halusinasi
-angka.
-
-Nada bahasa insight otomatis disesuaikan dengan kualitas data (r_squared,
-jumlah titik data, ada-tidaknya outlier yang dibuang):
-- R^2 tinggi & titik data banyak -> bahasa cukup percaya diri
-- R^2 rendah / titik data sedikit -> bahasa hedging, tekankan ketidakpastian
-
-CACHING: insight cuma di-generate SEKALI per baris, disimpan ke CSV.
-Jangan panggil API ini tiap kali dashboard diakses user -> mahal & lambat.
-Jalankan ulang script ini cuma waktu pipeline data di-refresh.
+Pembaruan (Batching):
+Script ini memproses 10 baris data sekaligus dalam 1 request API (Batching). 
+Ini memangkas waktu proses dan penggunaan koneksi secara drastis untuk
+menghindari error Rate Limit dari Groq.
 
 Cara pakai:
     pip install pandas groq
     export GROQ_API_KEY="gsk_..."                (Linux/Mac)
     set GROQ_API_KEY=gsk_...                     (Windows cmd)
-    $env:GROQ_API_KEY="gsk_..."                  (Windows PowerShell)
     python generate_insight.py
 """
 
 import os
 import time
+import json
 import pandas as pd
 from pathlib import Path
 from dotenv import load_dotenv
@@ -46,76 +31,67 @@ load_dotenv()  # Akan memuat variabel dari file .env secara otomatis
 
 INPUT_CSV = "hasil_proyeksi/proyeksi_semua_indikator.csv"
 OUTPUT_CSV = "hasil_proyeksi/proyeksi_dengan_insight.csv"
-MODEL = "llama-3.3-70b-versatile"
-JEDA_ANTAR_REQUEST = 2.0  # detik, disesuaikan agar tidak kena rate limit groq
+MODEL = "llama-3.3-70b-versatile" # Kamu bisa ganti ke 'llama-3.1-8b-instant' jika TPM limit sering tercapai
+BATCH_SIZE = 10 # Memproses 10 indikator dalam 1 kali request
+JEDA_ANTAR_REQUEST = 3.0  # Jeda dinaikkan sedikit karena 1 request sudah memproses 10 baris
 
-
-SYSTEM_PROMPT = """Kamu adalah asisten yang menerjemahkan hasil analisis statistik
-menjadi insight singkat berbahasa Indonesia untuk warga umum (bukan ahli statistik).
+SYSTEM_PROMPT = """Kamu adalah asisten yang menerjemahkan hasil analisis statistik menjadi insight singkat berbahasa Indonesia untuk warga umum (bukan ahli statistik).
 
 ATURAN KETAT:
-1. Kamu HANYA boleh memakai angka yang diberikan di data. JANGAN menghitung,
-   mengubah, atau menambahkan angka baru yang tidak ada di input.
-2. Tulis 2 kalimat singkat, bahasa natural, tanpa jargon statistik (jangan
-   pakai kata "R-squared", "regresi", "outlier" - jelaskan maknanya secara
-   natural kalau perlu).
+1. Kamu HANYA boleh memakai angka yang diberikan di data. JANGAN menghitung, mengubah, atau menambahkan angka baru.
+2. Tulis 1-2 kalimat singkat, bahasa natural, tanpa jargon statistik.
 3. Sesuaikan nada bahasa dengan tingkat keandalan data:
-   - Kalau r_squared >= 0.6 DAN jumlah_titik_dipakai >= 8: boleh bahasa
-     cukup percaya diri ("diproyeksikan akan...", "menunjukkan tren...")
-   - Kalau r_squared < 0.3 ATAU jumlah_titik_dipakai < 5: WAJIB pakai bahasa
-     hedging yang jelas ("cenderung...", "namun perlu dicatat data historis
-     cukup bervariasi sehingga angka ini sebaiknya dilihat sebagai perkiraan
-     kasar, bukan kepastian")
-   - Di antara itu: nada netral, sebutkan ada ketidakpastian secukupnya
-4. Kalau ada outlier yang terdeteksi (jumlah_outlier_terdeteksi > 0), boleh
-   disinggung sekilas kalau relevan (misal "beberapa data terdeteksi sebagai outlier
-   namun tetap disertakan dalam perhitungan").
-5. Jangan mengarang penyebab tren (jangan bilang "karena kebijakan X" atau
-   semacamnya) kecuali benar-benar tersirat jelas dari nama indikatornya.
-6. Output HANYA teks insight-nya saja, tanpa embel-embel seperti "Berikut
-   insight-nya:" atau tanda kutip."""
+   - r_squared >= 0.6 DAN jumlah_titik >= 8: cukup percaya diri ("diproyeksikan akan...")
+   - r_squared < 0.3 ATAU jumlah_titik < 5: bahasa hedging ("cenderung...", "namun perlu dicatat...")
+4. WAJIB merespons HANYA dengan JSON Object yang memiliki key "insights", berisi array dari hasil masing-masing ID. 
+Format Output:
+{
+  "insights": [
+    {"id": "id_dari_input_1", "insight": "teks insight di sini..."},
+    {"id": "id_dari_input_2", "insight": "teks insight di sini..."}
+  ]
+}"""
 
+def buat_prompt_batch(batch_rows):
+    """Susun prompt terstruktur JSON dari sekumpulan baris hasil proyeksi."""
+    data_list = []
+    for idx, row in batch_rows.iterrows():
+        arah_map = {"naik": "naik", "turun": "turun", "stabil": "relatif stabil"}
+        arah = arah_map.get(row.get("arah_tren", ""), row.get("arah_tren", "-"))
 
-def buat_prompt(row):
-    """Susun prompt terstruktur dari 1 baris hasil proyeksi."""
-    arah_map = {"naik": "naik", "turun": "turun", "stabil": "relatif stabil"}
-    arah = arah_map.get(row.get("arah_tren", ""), row.get("arah_tren", "-"))
+        item = {
+            "id": str(idx),
+            "indikator": str(row.get('indikator', '-')),
+            "wilayah": str(row.get('wilayah', row.get('level_wilayah', '-'))),
+            "titik_dipakai": str(row.get('jumlah_titik_dipakai', '-')),
+            "nilai_terakhir": str(row.get('nilai_terakhir', '-')),
+            "arah": arah,
+            "r_squared": str(row.get('r_squared', '-')),
+        }
+        
+        if pd.notna(row.get("tahun_+1")) and pd.notna(row.get("proyeksi_+1")):
+            item["proyeksi_1thn_kdpn"] = f"Tahun {int(row['tahun_+1'])}: {row['proyeksi_+1']}"
+            
+        data_list.append(item)
+    
+    # Dump JSON array of inputs
+    input_json = json.dumps(data_list, indent=2)
+    prompt = f"Berikut adalah {len(data_list)} data indikator:\n{input_json}\n\nBuat insight (maks 2 kalimat) untuk masing-masing id berdasarkan aturan system. Output harus dalam format JSON Object murni."
+    return prompt
 
-    bagian = [
-        f"Indikator: {row.get('indikator', '-')}",
-        f"Wilayah: {row.get('wilayah', row.get('level_wilayah', '-'))}",
-        f"Satuan: {row.get('satuan', '-')}",
-        f"Jumlah titik data historis yang dipakai: {row.get('jumlah_titik_dipakai', '-')}",
-        f"Tahun terakhir data: {row.get('tahun_terakhir', '-')}",
-        f"Nilai terakhir: {row.get('nilai_terakhir', '-')}",
-        f"Arah tren: {arah}",
-        f"R-squared (keandalan tren, skala 0-1): {row.get('r_squared', '-')}",
-        f"Jumlah outlier yang terdeteksi (tetap dihitung): {row.get('jumlah_outlier_terdeteksi', 0)}",
-    ]
-
-    if pd.notna(row.get("tahun_+1")) and pd.notna(row.get("proyeksi_+1")):
-        bagian.append(
-            f"Proyeksi tahun {int(row['tahun_+1'])}: {row['proyeksi_+1']} "
-            f"(rentang kemungkinan: {row.get('proyeksi_+1_bawah', '-')} "
-            f"sampai {row.get('proyeksi_+1_atas', '-')})"
-        )
-
-    bagian.append("\nBuat insight singkat (2 kalimat) berdasarkan data di atas.")
-    return "\n".join(bagian)
-
-
-def generate_insight_satu_baris(client, row):
-    prompt = buat_prompt(row)
+def generate_insight_batch(client, batch_rows):
+    prompt = buat_prompt_batch(batch_rows)
     response = client.chat.completions.create(
         model=MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt}
         ],
-        max_tokens=200,
+        response_format={"type": "json_object"},
+        max_tokens=2048,
+        temperature=0.3
     )
     return response.choices[0].message.content.strip()
-
 
 def main():
     api_keys_str = os.environ.get("GROQ_API_KEYS") or os.environ.get("GROQ_API_KEY")
@@ -130,6 +106,10 @@ def main():
     client = groq.Groq(api_key=api_keys[current_key_idx])
 
     # Mekanisme Resume
+    if not os.path.exists(INPUT_CSV):
+        print(f"[!] File input {INPUT_CSV} tidak ditemukan.")
+        return
+        
     df = pd.read_csv(INPUT_CSV, low_memory=False)
     if "insight_text" not in df.columns:
         df["insight_text"] = None
@@ -137,60 +117,80 @@ def main():
     if os.path.exists(OUTPUT_CSV):
         df_out = pd.read_csv(OUTPUT_CSV, low_memory=False)
         if "insight_text" in df_out.columns:
-            # Pindahkan insight yang sudah selesai ke df utama
+            # Pindahkan insight yang sudah ada
             df["insight_text"] = df_out["insight_text"]
     
     Path(OUTPUT_CSV).parent.mkdir(exist_ok=True, parents=True)
 
-    total_baris = len(df)
-    baris_sudah = df["insight_text"].notna().sum()
+    # Identifikasi baris yang belum diproses
+    unprocessed_indices = df[df["insight_text"].isna() | (df["insight_text"].astype(str).str.strip() == "")].index.tolist()
     
-    # Hitung yang insight_text-nya bukan string kosong
-    baris_selesai = 0
-    for val in df["insight_text"]:
-        if pd.notna(val) and str(val).strip() != "":
-            baris_selesai += 1
-            
-    print(f"Total baris: {total_baris} | Sudah diproses: {baris_selesai} | Sisa: {total_baris - baris_selesai}")
+    total_baris = len(df)
+    baris_selesai = total_baris - len(unprocessed_indices)
+    print(f"Total baris: {total_baris} | Sudah diproses: {baris_selesai} | Sisa: {len(unprocessed_indices)}")
 
+    if len(unprocessed_indices) == 0:
+        print("Semua data sudah memiliki insight. Selesai.")
+        return
+
+    # Buat Batch Array (Daftar potongan index per batch)
+    batches = [unprocessed_indices[i:i + BATCH_SIZE] for i in range(0, len(unprocessed_indices), BATCH_SIZE)]
+    
     gagal = 0
-    for i, row in df.iterrows():
-        # Lewati jika baris ini sudah ada insight-nya (Resume)
-        if pd.notna(row.get("insight_text")) and str(row.get("insight_text")).strip() != "":
-            continue
-
-        if (i + 1) % 10 == 0 or (i + 1) == total_baris:
-            print(f"  ... progress: {i + 1}/{total_baris}")
-
+    for i, batch_indices in enumerate(batches):
+        print(f"\n  ... processing batch {i+1}/{len(batches)} (Isi: {len(batch_indices)} indikator)")
+        batch_rows = df.loc[batch_indices]
+        
         retry = True
-        while retry:
+        retry_count = 0
+        while retry and retry_count < 3:
             retry = False
             try:
-                teks = generate_insight_satu_baris(client, row)
-                df.at[i, "insight_text"] = teks
+                hasil_json_str = generate_insight_batch(client, batch_rows)
                 
-                # Simpan setiap 10 baris agar tidak hilang jika script terhenti/error
-                if (i + 1) % 10 == 0:
-                    df.to_csv(OUTPUT_CSV, index=False)
-                    
+                try:
+                    hasil_json = json.loads(hasil_json_str)
+                    insights_list = hasil_json.get("insights", [])
+                except json.JSONDecodeError:
+                    print("    [Error] AI tidak merespons dengan JSON yang valid. Mencoba ulang...")
+                    retry = True
+                    retry_count += 1
+                    time.sleep(2)
+                    continue
+
+                for item in insights_list:
+                    row_id = int(item.get("id", -1))
+                    if row_id in batch_indices:
+                        df.at[row_id, "insight_text"] = item.get("insight", "")
+                
+                df.to_csv(OUTPUT_CSV, index=False)
+                print(f"    [OK] Batch {i+1} tersimpan.")
+                
             except Exception as e:
-                # Cek jika error karena rate limit (429)
-                if "429" in str(e) or "rate_limit" in str(e).lower() or "tokens" in str(e).lower():
+                # Menangani Rate limit
+                if "429" in str(e) or "rate_limit" in str(e).lower() or "tokens" in str(e).lower() or "too_many_requests" in str(e).lower():
                     current_key_idx += 1
                     if current_key_idx < len(api_keys):
-                        print(f"    [Limit] API Key ke-{current_key_idx} habis. Ganti ke API Key ke-{current_key_idx + 1}...")
+                        print(f"    [Limit/Token] Key ke-{current_key_idx} habis. Ganti ke Key ke-{current_key_idx + 1}...")
                         client = groq.Groq(api_key=api_keys[current_key_idx])
-                        retry = True  # Ulangi baris ini dengan API key baru
+                        retry = True  # Ulangi dengan key baru
                     else:
-                        print(f"    [Error] SEMUA {len(api_keys)} API KEY sudah terkena limit di baris {i}.")
+                        print(f"    [Error] SEMUA {len(api_keys)} API KEY sudah terkena limit di batch {i+1}.")
                         df.to_csv(OUTPUT_CSV, index=False)
-                        return  # Berhenti eksekusi dan keluar (jangan paksa error)
+                        print("    Program dihentikan karena Rate Limit. Silakan jalankan lagi beberapa menit kemudian.")
+                        return 
                 else:
-                    gagal += 1
-                    df.at[i, "insight_text"] = ""
-                    print(f"    [Error] baris {i} ({row.get('indikator', '-')}): {e}")
+                    print(f"    [Error] pada batch {i+1}: {e}")
+                    retry_count += 1
+                    if retry_count < 3:
+                        print(f"    [Retry] Mencoba ulang batch... ({retry_count}/3)")
+                        retry = True
+                        time.sleep(2)
+                    else:
+                        print("    [Gagal] Melewati batch ini setelah 3 kali gagal.")
+                        gagal += len(batch_indices)
 
-        # Jeda hanya saat berhasil atau error non-limit
+        # Jeda hanya saat berhasil atau error yang di-skip
         if not retry:
             time.sleep(JEDA_ANTAR_REQUEST)
 
@@ -198,10 +198,9 @@ def main():
     df.to_csv(OUTPUT_CSV, index=False)
 
     print("\n" + "=" * 60)
-    print(f"Selesai. Insight baru berhasil: {total_baris - baris_selesai - gagal} | Gagal (Bukan Limit): {gagal}")
+    print(f"Selesai! Baris gagal: {gagal}")
     print(f"Tersimpan di: {OUTPUT_CSV}")
     print("=" * 60)
-
 
 if __name__ == "__main__":
     main()
