@@ -2,6 +2,7 @@ import { useState } from 'react'
 import ChatbotPage from './Chatbot'
 import { TrendPredictionDashboard } from './TrendPrediction'
 import NarasiLaporanView from './NarasiLaporan'
+import AnomalyAI from './AnomalyAI'
 
 const features = [
   {
@@ -43,6 +44,7 @@ export default function App() {
     if (title === 'Statistical Q&A') setPage('chat')
     if (title === 'AI Prediksi Tren Data') setPage('trend')
     if (title === 'AI Narasi Laporan Otomatis') setPage('narasi')
+    if (title === 'AI Analisis Anomali') setPage('anomaly')
   }
 
   return (
@@ -122,6 +124,20 @@ export default function App() {
           </header>
           <main className="max-w-6xl mx-auto px-4 pb-12">
             <NarasiLaporanView onBack={() => setPage('home')} />
+          </main>
+        </div>
+      ) : page === 'anomaly' ? (
+        <div className="flex-grow">
+          <header className="p-4 mb-4 max-w-6xl mx-auto">
+            <button
+              onClick={() => setPage('home')}
+              className="text-slate-600 hover:text-slate-900 font-semibold text-sm"
+            >
+              &larr; Kembali ke Beranda
+            </button>
+          </header>
+          <main className="max-w-6xl mx-auto px-4 pb-12">
+            <AnomalyAI />
           </main>
         </div>
       ) : (
