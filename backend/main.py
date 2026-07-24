@@ -9,10 +9,12 @@ from backend.routes.chat import router as chat_router
 
 from .db import DB_PATH, get_connection
 from .loader import ensure_database
+from api.routes import router
 
 app = FastAPI(title='SADA-AI Trend Prediction API', version='0.1.0')
 
 app.include_router(chat_router)
+app.include_router(router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,6 +23,13 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+
+@app.get("/")
+def root():
+    return {
+        "service": "SADA AI",
+        "status": "Running"
+    }
 
 
 @app.on_event('startup')

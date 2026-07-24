@@ -1,0 +1,1 @@
+BASE_URL = "https://satudata.acehprov.go.id/api/datasets"
