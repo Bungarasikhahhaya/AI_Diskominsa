@@ -1,7 +1,6 @@
 import requests
 import pandas as pd
-
-BASE_URL = "https://satudata.acehprov.go.id/api/datasets"
+from common.config import BASE_URL
 
 
 class APIClient:
